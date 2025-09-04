@@ -1,1 +1,2 @@
 "keyhunt_archive.zip" 
+-e "\n# Development tool directories\n.claude/\n.gemini/\n.qoder/\n.vscode/" 
