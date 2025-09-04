@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(make:*)",
+      "Bash(chmod:*)",
+      "Bash(./test_gecc_compilation.sh:*)",
+      "Bash(wsl:*)"
+    ],
+    "additionalDirectories": [
+      "D:\\d\\mybitcoin\\2\\keyhunt"
+    ]
+  },
+  "outputStyle": "CUDA/C++ Bitcoin KeyHunt AI Agent & Gemini Collaboration Framework"
+}

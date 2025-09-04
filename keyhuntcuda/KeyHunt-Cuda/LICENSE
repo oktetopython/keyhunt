@@ -1,0 +1,113 @@
+MIT License
+
+Copyright (c) 2024 KeyHunt-Cuda Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+
+ADDITIONAL TERMS AND CONDITIONS
+
+1. EDUCATIONAL AND RESEARCH USE ONLY
+   This software is intended for educational and research purposes only. Users
+   are responsible for ensuring their use complies with all applicable laws
+   and regulations in their jurisdiction.
+
+2. NO WARRANTY FOR CRYPTOCURRENCY OPERATIONS
+   The authors provide no warranty regarding the accuracy, reliability, or
+   security of cryptocurrency-related operations. Users assume all risks
+   associated with cryptocurrency key generation, validation, and usage.
+
+3. RESPONSIBLE USE
+   Users must:
+   - Comply with all applicable laws and regulations
+   - Respect the privacy and property rights of others
+   - Use the software ethically and responsibly
+   - Not use the software for illegal activities
+
+4. LIMITATION OF LIABILITY
+   In no event shall the authors or contributors be liable for any direct,
+   indirect, incidental, special, exemplary, or consequential damages
+   (including, but not limited to, procurement of substitute goods or services;
+   loss of use, data, or profits; or business interruption) however caused and
+   on any theory of liability, whether in contract, strict liability, or tort
+   (including negligence or otherwise) arising in any way out of the use of
+   this software, even if advised of the possibility of such damage.
+
+5. INDEMNIFICATION
+   Users agree to indemnify and hold harmless the authors and contributors from
+   any claims, damages, or expenses arising from their use of the software.
+
+6. COMPLIANCE WITH EXPORT LAWS
+   Users are responsible for compliance with all applicable export laws and
+   regulations. The software may be subject to export controls in various
+   jurisdictions.
+
+7. THIRD-PARTY COMPONENTS
+   This software may include third-party components with their own licenses.
+   Users must comply with all applicable third-party licenses.
+
+8. MODIFICATION AND DISTRIBUTION
+   Modified versions of this software must:
+   - Clearly indicate the modifications made
+   - Include this license and additional terms
+   - Not misrepresent the origin of the software
+   - Include appropriate attribution to original authors
+
+9. TERMINATION
+   This license automatically terminates if users violate any of its terms.
+   Upon termination, users must cease all use and distribution of the software.
+
+10. GOVERNING LAW
+    This license shall be governed by and construed in accordance with the
+    laws of the jurisdiction where the original authors reside, without regard
+    to conflict of law principles.
+
+================================================================================
+
+ACKNOWLEDGMENTS
+
+This software builds upon the work of many contributors in the cryptocurrency
+and GPU computing communities. We acknowledge:
+
+- The Bitcoin development community for cryptographic standards
+- NVIDIA for CUDA toolkit and documentation
+- The open-source community for libraries and tools
+- All contributors who have improved this software
+
+================================================================================
+
+DISCLAIMER
+
+This software is provided for educational and research purposes only. The
+authors do not encourage or condone any illegal activities. Users are solely
+responsible for their actions and must ensure compliance with all applicable
+laws and regulations.
+
+Cryptocurrency private key search should only be performed on keys that you
+own or have explicit permission to test. Unauthorized access to cryptocurrency
+wallets or accounts is illegal and unethical.
+
+The authors assume no responsibility for any misuse of this software or any
+consequences arising from such misuse.
+
+================================================================================
+
+For questions about this license, please contact the project maintainers
+through the official project repository.

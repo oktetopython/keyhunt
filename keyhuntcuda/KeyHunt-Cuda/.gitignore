@@ -1,0 +1,190 @@
+# KeyHunt-Cuda .gitignore
+
+# Compiled binaries
+KeyHunt
+KeyHunt.exe
+*.exe
+*.out
+
+# Object files
+*.o
+*.obj
+obj/
+*.a
+*.lib
+
+# Debug files
+*.pdb
+*.dSYM/
+*.su
+*.idb
+*.ilk
+
+# CUDA compilation files
+*.ptx
+*.cubin
+*.fatbin
+
+# Build directories
+build/
+bin/
+lib/
+
+# IDE files
+.vscode/
+.vs/
+*.vcxproj*
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+*.txt
+Found.txt
+Results.txt
+Debug.txt
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Configuration files (may contain sensitive data)
+config.ini
+settings.conf
+*.config
+
+# Test results
+test_results/
+benchmark_results/
+
+# Documentation build files
+docs/_build/
+docs/html/
+docs/latex/
+
+# Python cache (if any Python scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Node.js (if any Node.js tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package files
+*.deb
+*.rpm
+*.pkg
+*.dmg
+
+# Profiling data
+*.prof
+*.nvprof
+*.nvvp
+
+# Memory dumps
+*.dmp
+core.*
+
+# Editor files
+*.sublime-*
+*.kate-swp
+.idea/
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Custom build scripts (may contain local paths)
+build_local.sh
+compile_local.sh
+
+# Performance test results
+perf_*.txt
+benchmark_*.csv
+
+# Private keys and sensitive data
+private_keys.txt
+wallets.txt
+seeds.txt
+*.key
+*.pem
+
+# Large data files
+*.dat
+*.bin
+*.raw
+
+# Temporary CUDA files
+*.i
+*.ii
+*.s
+
+# CMake files (if CMake is used)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile.cmake
+
+# Autotools files
+autom4te.cache/
+config.log
+config.status
+configure
+Makefile.in
+aclocal.m4
+
+# Local documentation
+docs/local/
+README_local.md
+
+# Custom scripts with local configurations
+*_local.*
+local_*
+
+# Ignore specific result files but keep examples
+Found.txt
+Results_*.txt
+Output_*.txt
+
+# Keep example files
+!examples/
+!examples/*
+
+# Keep documentation
+!docs/
+!docs/*
+
+# Keep scripts
+!scripts/
+!scripts/*
