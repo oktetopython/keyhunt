@@ -41,7 +41,7 @@
 const bool use_gECC_backend = false;
 
 // NEW: 启用统一内核接口标志 (暂时禁用，等待修复)
-const bool use_unified_kernels = false;
+const bool use_unified_kernels = true;
 
 // Forward declaration for the reset function
 __global__ void reset_found_flag();
