@@ -16,8 +16,8 @@
  */
 
 #include "GPUEngine.h"
-// #include "GPUEngine_Unified.h"  // NEW: 统一GPU引擎接口 (暂时禁用)
-// #include "GPUEngine_gECC.h" // Disabled for gECC integration
+#include "GPUEngine_Unified.h"  // NEW: 统一GPU引擎接口 (已启用)
+
 #include <cuda.h>
 #include <stdexcept>
 #include <cuda_runtime.h>
@@ -40,12 +40,11 @@
 // Flag to control which backend to use - DISABLED for standalone KeyHunt
 const bool use_gECC_backend = false;
 
-// NEW: 启用统一内核接口标志 (暂时禁用，等待修复)
-const bool use_unified_kernels = true;
+// NEW: 临时禁用统一内核接口以恢复性能 (修复性能问题)
+const bool use_unified_kernels = false;
 
 // Forward declaration for the reset function
 __global__ void reset_found_flag();
-#include "GPUCompute.h"
 
 // ----------------------------- MEMORY MANAGEMENT FUNCTIONS -----------------------------
 
@@ -461,10 +460,7 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 	// generator table
 	InitGenratorTable(secp);
 
-	// Initialize gECC backend if enabled (暂时禁用)
-	// if(use_gECC_backend) {
-	//	gECC_Bridge::initialize_gECC();
-	// }
+
 
 
 	CudaSafeCall(cudaGetLastError());
@@ -553,10 +549,7 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 	// generator table
 	InitGenratorTable(secp);
 
-	// Initialize gECC backend if enabled (暂时禁用)
-	// if(use_gECC_backend) {
-	//	gECC_Bridge::initialize_gECC();
-	// }
+
 
 
 	CudaSafeCall(cudaGetLastError());
@@ -768,10 +761,10 @@ bool GPUEngine::callKernelWithErrorCheck(KernelFunc kernelFunc, bool resetFoundF
 
 bool GPUEngine::callKernelSEARCH_MODE_MA()
 {
-	// NEW: 使用统一内核接口，消除代码重复 (暂时禁用)
-	// if (use_unified_kernels) {
-	//	return CALL_UNIFIED_KERNEL_MA(this);
-	// }
+	// NEW: 使用统一内核接口，消除代码重复 (已启用)
+	if (use_unified_kernels) {
+		return CALL_UNIFIED_KERNEL_MA(this);
+	}
 
 	// LEGACY: 保留原始实现作为备用
 	return callKernelWithErrorCheck([this]() {
@@ -798,10 +791,10 @@ bool GPUEngine::callKernelSEARCH_MODE_MA()
 
 bool GPUEngine::callKernelSEARCH_MODE_MX()
 {
-	// NEW: 使用统一内核接口，消除代码重复 (暂时禁用)
-	// if (use_unified_kernels) {
-	//	return CALL_UNIFIED_KERNEL_MX(this);
-	// }
+	// NEW: 使用统一内核接口，消除代码重复 (已启用)
+	if (use_unified_kernels) {
+		return CALL_UNIFIED_KERNEL_MX(this);
+	}
 
 	// LEGACY: 保留原始实现作为备用
 	return callKernelWithErrorCheck([this]() {
@@ -821,10 +814,10 @@ bool GPUEngine::callKernelSEARCH_MODE_MX()
 
 bool GPUEngine::callKernelSEARCH_MODE_SA()
 {
-	// NEW: 使用统一内核接口，消除代码重复 (暂时禁用)
-	// if (use_unified_kernels) {
-	//	return CALL_UNIFIED_KERNEL_SA(this);
-	// }
+	// NEW: 使用统一内核接口，消除代码重复 (已启用)
+	if (use_unified_kernels) {
+		return CALL_UNIFIED_KERNEL_SA(this);
+	}
 
 	// LEGACY: 保留原始实现作为备用
 	return callKernelWithErrorCheck([this]() {
@@ -850,10 +843,10 @@ bool GPUEngine::callKernelSEARCH_MODE_SA()
 
 bool GPUEngine::callKernelSEARCH_MODE_SX()
 {
-	// NEW: 使用统一内核接口，消除代码重复 (暂时禁用)
-	// if (use_unified_kernels) {
-	//	return CALL_UNIFIED_KERNEL_SX(this);
-	// }
+	// NEW: 使用统一内核接口，消除代码重复 (已启用)
+	if (use_unified_kernels) {
+		return CALL_UNIFIED_KERNEL_SX(this);
+	}
 
 	// LEGACY: 保留原始实现作为备用
 	return callKernelWithErrorCheck([this]() {
