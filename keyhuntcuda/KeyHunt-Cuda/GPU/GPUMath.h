@@ -15,12 +15,17 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef GPUMATHH
+#define GPUMATHH
+
+#include "../Constants.h"
+
 // ---------------------------------------------------------------------------------
 // 256(+64) bits integer CUDA libray for SECPK1
 // ---------------------------------------------------------------------------------
 
 
-#define GRP_SIZE (1024*2)
+#define GRP_SIZE KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE
 
 
 
@@ -56,7 +61,7 @@
 //__device__ __constant__ uint64_t _beta[] = { 0xC1396C28719501EEULL, 0x9CF0497512F58995ULL, 0x6E64479EAC3434E9ULL, 0x7AE96A2B657C0710ULL };
 //__device__ __constant__ uint64_t _beta2[] = { 0x3EC693D68E6AFA40ULL, 0x630FB68AED0A766AULL, 0x919BB86153CBCB16ULL, 0x851695D49A83F8EFULL };
 
-#define HSIZE (GRP_SIZE / 2 - 1)
+#define HSIZE KeyHuntConstants::ELLIPTIC_CURVE_HALF_GROUP_SIZE
 
 // 64bits lsb negative inverse of P (mod 2^64)
 #define MM64 0xD838091DD2253531ULL
@@ -627,6 +632,11 @@ __device__ __noinline__ void _ModInv(uint64_t *R)
 // a and b must be lower than n
 // ---------------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------------
+// Compute a*b*(mod n)
+// a and b must be lower than n
+// ---------------------------------------------------------------------------------------
+
 __device__ void _ModMult(uint64_t *r, uint64_t *a, uint64_t *b)
 {
 
@@ -677,54 +687,15 @@ __device__ void _ModMult(uint64_t *r, uint64_t *a, uint64_t *b)
 
 }
 
-
+// ---------------------------------------------------------------------------------------
+// Compute r*a*(mod n) - two parameter version
+// r and a must be lower than n
+// ---------------------------------------------------------------------------------------
 __device__ void _ModMult(uint64_t *r, uint64_t *a)
 {
-
-    uint64_t r512[8];
-    uint64_t t[NBBLOCK];
-    uint64_t ah, al;
-    r512[5] = 0;
-    r512[6] = 0;
-    r512[7] = 0;
-
-    // 256*256 multiplier
-    UMult(r512, a, r[0]);
-    UMult(t, a, r[1]);
-    UADDO1(r512[1], t[0]);
-    UADDC1(r512[2], t[1]);
-    UADDC1(r512[3], t[2]);
-    UADDC1(r512[4], t[3]);
-    UADD1(r512[5], t[4]);
-    UMult(t, a, r[2]);
-    UADDO1(r512[2], t[0]);
-    UADDC1(r512[3], t[1]);
-    UADDC1(r512[4], t[2]);
-    UADDC1(r512[5], t[3]);
-    UADD1(r512[6], t[4]);
-    UMult(t, a, r[3]);
-    UADDO1(r512[3], t[0]);
-    UADDC1(r512[4], t[1]);
-    UADDC1(r512[5], t[2]);
-    UADDC1(r512[6], t[3]);
-    UADD1(r512[7], t[4]);
-
-    // Reduce from 512 to 320
-    UMult(t, (r512 + 4), 0x1000003D1ULL);
-    UADDO1(r512[0], t[0]);
-    UADDC1(r512[1], t[1]);
-    UADDC1(r512[2], t[2]);
-    UADDC1(r512[3], t[3]);
-
-    // Reduce from 320 to 256
-    UADD1(t[4], 0ULL);
-    UMULLO(al, t[4], 0x1000003D1ULL);
-    UMULHI(ah, t[4], 0x1000003D1ULL);
-    UADDO(r[0], r512[0], al);
-    UADDC(r[1], r512[1], ah);
-    UADDC(r[2], r512[2], 0ULL);
-    UADD(r[3], r512[3], 0ULL);
-
+    uint64_t t[4];
+    _ModMult(t, r, a);
+    Load256(r, t);
 }
 
 __device__ void _ModSqr(uint64_t *rp, const uint64_t *up)
@@ -904,24 +875,24 @@ __device__ void _ModSqr(uint64_t *rp, const uint64_t *up)
 // Compute all ModInv of the group
 // ---------------------------------------------------------------------------------------
 
-__device__ __noinline__ void _ModInvGrouped(uint64_t r[GRP_SIZE / 2 + 1][4])
+__device__ __noinline__ void _ModInvGrouped(uint64_t r[KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1][4])
 {
 
-    uint64_t subp[GRP_SIZE / 2 + 1][4];
+    uint64_t subp[KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1][4];
     uint64_t newValue[4];
     uint64_t inverse[5];
 
     Load256(subp[0], r[0]);
-    for (uint32_t i = 1; i < (GRP_SIZE / 2 + 1); i++) {
+    for (uint32_t i = 1; i < (KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1); i++) {
         _ModMult(subp[i], subp[i - 1], r[i]);
     }
 
     // We need 320bit signed int for ModInv
-    Load256(inverse, subp[(GRP_SIZE / 2 + 1) - 1]);
+    Load256(inverse, subp[(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1) - 1]);
     inverse[4] = 0;
     _ModInv(inverse);
 
-    for (uint32_t i = (GRP_SIZE / 2 + 1) - 1; i > 0; i--) {
+    for (uint32_t i = (KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1) - 1; i > 0; i--) {
         _ModMult(newValue, subp[i - 1], inverse);
         _ModMult(inverse, r[i]);
         Load256(r[i], newValue);
@@ -930,3 +901,5 @@ __device__ __noinline__ void _ModInvGrouped(uint64_t r[GRP_SIZE / 2 + 1][4])
     Load256(r[0], inverse);
 
 }
+
+#endif // GPUMATHH

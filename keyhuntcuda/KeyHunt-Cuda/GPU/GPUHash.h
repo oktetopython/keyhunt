@@ -15,6 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef GPUHASHH
+#define GPUHASHH
+
 // ---------------------------------------------------------------------------------
 // SHA256
 // ---------------------------------------------------------------------------------
@@ -913,3 +916,5 @@ __device__ __noinline__ void _GetHashKeccak160(uint64_t* x, uint64_t* y, uint32_
 	hash[3] = e.d[6];
 	hash[4] = e.d[7];
 }
+
+#endif // GPUHASHH

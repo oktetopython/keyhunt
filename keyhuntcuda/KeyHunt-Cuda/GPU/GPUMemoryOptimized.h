@@ -2,6 +2,7 @@
 #define GPUMEMORYOPTIMIZED_H
 
 #include "GPUMath.h"
+#include "../Constants.h"
 
 // Memory-optimized version of key computation functions
 // Addresses the identified memory bottlenecks:
@@ -27,7 +28,7 @@ __shared__ uint64_t shared_dx_staging[128][4]; // Staging area for dx computatio
 __device__ __noinline__ void _ModInvGrouped_Optimized(OptimizedDxArrays& dx_arrays, int group_size)
 {
     // Use shared memory for intermediate computations to reduce global memory pressure
-    __shared__ uint64_t shared_subp[GRP_SIZE/2 + 1][4];
+    __shared__ uint64_t shared_subp[KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE/2 + 1][4];
     uint64_t newValue[4];
     uint64_t inverse[5];
     
@@ -123,7 +124,7 @@ __device__ void ComputeKeys_MemoryOptimized(uint32_t mode, uint64_t* startx, uin
 {
     // Allocate optimized dx arrays in global memory (would need pre-allocation)
     // For now, use local arrays but with better access patterns
-    uint64_t dx_local[GRP_SIZE / 2 + 1][4];
+    uint64_t dx_local[KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1][4];
     
     uint64_t px[4], py[4], pyn[4], sx[4], sy[4];
     uint64_t dy[4], _s[4], _p2[4];

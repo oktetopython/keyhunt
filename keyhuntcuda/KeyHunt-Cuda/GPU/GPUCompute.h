@@ -1,6 +1,6 @@
 /*
  * This file is part of the VanitySearch distribution (https://github.com/JeanLucPons/VanitySearch).
- * Copyright (c) 2019 Jean Luc PONS.
+ * Copyright (c) 2019 Jean Luc Pons.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,9 +15,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef GPU_COMPUTE_H
+#define GPU_COMPUTE_H
+
 // Use recommended CUDA headers instead of deprecated device_functions.h
 #include <cuda_runtime.h>
 #include <device_atomic_functions.h>
+
+// Include hash function headers
+#include "../hash/sha256.h"
+#include "../hash/ripemd160.h"
+#include "../Constants.h"
+#include "GPUCompute_Unified.h"
 
 __device__ uint64_t* _2Gnx = NULL;
 __device__ uint64_t* _2Gny = NULL;
@@ -237,52 +246,17 @@ __device__ int BloomCheck(const uint32_t* hash, const uint8_t* inputBloomLookUp,
 
 // ---------------------------------------------------------------------------------------
 
-__device__ __noinline__ void CheckPointSEARCH_MODE_MA(uint32_t* _h, int32_t incr, int32_t mode,
-	uint8_t* bloomLookUp, uint64_t BLOOM_BITS, uint8_t BLOOM_HASHES, uint32_t maxFound, uint32_t* out)
-{
-	uint32_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-	if (BloomCheck(_h, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, 20) > 0) {
-		uint32_t pos = atomicAdd(out, 1);
-		if (pos < maxFound) {
-			out[pos * ITEM_SIZE_A32 + 1] = tid;
-			out[pos * ITEM_SIZE_A32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(mode << 15);// | (uint32_t)(endo);
-			out[pos * ITEM_SIZE_A32 + 3] = _h[0];
-			out[pos * ITEM_SIZE_A32 + 4] = _h[1];
-			out[pos * ITEM_SIZE_A32 + 5] = _h[2];
-			out[pos * ITEM_SIZE_A32 + 6] = _h[3];
-			out[pos * ITEM_SIZE_A32 + 7] = _h[4];
-		}
-	}
-}
+// 已被统一接口替代的函数 - 删除重复实现
+// __device__ __noinline__ void CheckPointSEARCH_MODE_MA(...)
 
 // ---------------------------------------------------------------------------------------
 
-__device__ __noinline__ void CheckPointSEARCH_MODE_MX(uint32_t* _h, int32_t incr, int32_t mode,
-	uint8_t* bloomLookUp, uint64_t BLOOM_BITS, uint8_t BLOOM_HASHES, uint32_t maxFound, uint32_t* out)
-{
-	uint32_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-	if (BloomCheck(_h, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, 32) > 0) {
-		uint32_t pos = atomicAdd(out, 1);
-		if (pos < maxFound) {
-			out[pos * ITEM_SIZE_X32 + 1] = tid;
-			out[pos * ITEM_SIZE_X32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(mode << 15);// | (uint32_t)(endo);
-			out[pos * ITEM_SIZE_X32 + 3] = _h[0];
-			out[pos * ITEM_SIZE_X32 + 4] = _h[1];
-			out[pos * ITEM_SIZE_X32 + 5] = _h[2];
-			out[pos * ITEM_SIZE_X32 + 6] = _h[3];
-			out[pos * ITEM_SIZE_X32 + 7] = _h[4];
-			out[pos * ITEM_SIZE_X32 + 8] = _h[5];
-			out[pos * ITEM_SIZE_X32 + 9] = _h[6];
-			out[pos * ITEM_SIZE_X32 + 10] = _h[7];
-		}
-	}
-}
+// 已被统一接口替代的函数 - 删除重复实现
+// __device__ __noinline__ void CheckPointSEARCH_MODE_MX(...)
 
 // ---------------------------------------------------------------------------------------
 
-__device__ __noinline__ bool MatchHash(uint32_t* _h, uint32_t* hash)
+__device__ __noinline__ bool MatchHash(const uint32_t* _h, const uint32_t* hash)
 {
 	if (_h[0] == hash[0] &&
 		_h[1] == hash[1] &&
@@ -298,12 +272,9 @@ __device__ __noinline__ bool MatchHash(uint32_t* _h, uint32_t* hash)
 
 // ---------------------------------------------------------------------------------------
 
-__device__ __noinline__ bool MatchXPoint(uint32_t* _h, uint32_t* xpoint)
+__device__ __noinline__ bool MatchXPoint(const uint32_t* _h, const uint32_t* xpoint)
 {
-	//for (int i = 0; i < 32; i++) {
-	//	printf("%02x", ((uint8_t*)xpoint)[i]);
-	//}
-	//printf("\n");
+	
 
 	if (_h[0] == xpoint[0] &&
 		_h[1] == xpoint[1] &&
@@ -322,52 +293,13 @@ __device__ __noinline__ bool MatchXPoint(uint32_t* _h, uint32_t* xpoint)
 
 // ---------------------------------------------------------------------------------------
 
-__device__ __noinline__ void CheckPointSEARCH_MODE_SA(uint32_t* _h, int32_t incr, int32_t mode,
-	uint32_t* hash160, uint32_t maxFound, uint32_t* out)
-{
-	uint32_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-	if (MatchHash(_h, hash160)) {
-		// Use atomic compare-and-swap to ensure only one thread writes the result
-		if (atomicCAS(&found_flag, 0, 1) == 0) {
-			// Only the first thread that finds a match can execute this block
-			uint32_t pos = atomicAdd(out, 1);
-			if (pos < maxFound) {
-				out[pos * ITEM_SIZE_A32 + 1] = tid;
-				out[pos * ITEM_SIZE_A32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(mode << 15);// | (uint32_t)(endo);
-				out[pos * ITEM_SIZE_A32 + 3] = _h[0];
-				out[pos * ITEM_SIZE_A32 + 4] = _h[1];
-				out[pos * ITEM_SIZE_A32 + 5] = _h[2];
-				out[pos * ITEM_SIZE_A32 + 6] = _h[3];
-				out[pos * ITEM_SIZE_A32 + 7] = _h[4];
-			}
-		}
-	}
-}
+// 已被统一接口替代的函数 - 删除重复实现
+// __device__ __noinline__ void CheckPointSEARCH_MODE_SA(...)
 
 // ---------------------------------------------------------------------------------------
 
-__device__ __noinline__ void CheckPointSEARCH_MODE_SX(uint32_t* _h, int32_t incr, int32_t mode,
-	uint32_t* xpoint, uint32_t maxFound, uint32_t* out)
-{
-	uint32_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-	if (MatchXPoint(_h, xpoint)) {
-		uint32_t pos = atomicAdd(out, 1);
-		if (pos < maxFound) {
-			out[pos * ITEM_SIZE_X32 + 1] = tid;
-			out[pos * ITEM_SIZE_X32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(mode << 15);// | (uint32_t)(endo);
-			out[pos * ITEM_SIZE_X32 + 3] = _h[0];
-			out[pos * ITEM_SIZE_X32 + 4] = _h[1];
-			out[pos * ITEM_SIZE_X32 + 5] = _h[2];
-			out[pos * ITEM_SIZE_X32 + 6] = _h[3];
-			out[pos * ITEM_SIZE_X32 + 7] = _h[4];
-			out[pos * ITEM_SIZE_X32 + 8] = _h[5];
-			out[pos * ITEM_SIZE_X32 + 9] = _h[6];
-			out[pos * ITEM_SIZE_X32 + 10] = _h[7];
-		}
-	}
-}
+// 已被统一接口替代的函数 - 删除重复实现
+// __device__ __noinline__ void CheckPointSEARCH_MODE_SX(...)
 
 // -----------------------------------------------------------------------------------------
 
@@ -507,11 +439,13 @@ __device__ __noinline__ void CheckPubSEARCH_MODE_SX(uint32_t mode, uint64_t* px,
 
 #define CHECK_HASH_SEARCH_MODE_MA(incr) CheckHashSEARCH_MODE_MA(mode, px, py, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
 
-__device__ void ComputeKeysSEARCH_MODE_MA(uint32_t mode, uint64_t* startx, uint64_t* starty,
-	uint8_t* bloomLookUp, int BLOOM_BITS, uint8_t BLOOM_HASHES, uint32_t maxFound, uint32_t* out)
+// Unified ComputeKeys function template to eliminate code duplication
+template<SearchMode Mode>
+__device__ void ComputeKeysUnified(uint32_t mode, uint64_t* startx, uint64_t* starty,
+	const void* target_data, uint32_t param1, uint32_t param2, uint32_t maxFound, uint32_t* out)
 {
-
-	uint64_t dx[GRP_SIZE / 2 + 1][4];
+	// 使用统一接口，变量声明已移至统一函数中
+	uint64_t dx[KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1][4];
 	uint64_t px[4];
 	uint64_t py[4];
 	uint64_t pyn[4];
@@ -530,7 +464,7 @@ __device__ void ComputeKeysSEARCH_MODE_MA(uint32_t mode, uint64_t* startx, uint6
 
 	// Fill group with delta x
 	uint32_t i;
-	for (i = 0; i < HSIZE; i++)
+	for (i = 0; i < KeyHuntConstants::ELLIPTIC_CURVE_HALF_GROUP_SIZE; i++)
 		ModSub256(dx[i], Gx + 4 * i, sx);
 	ModSub256(dx[i], Gx + 4 * i, sx);   // For the first point
 	ModSub256(dx[i + 1], _2Gnx, sx); // For the next center point
@@ -542,24 +476,24 @@ __device__ void ComputeKeysSEARCH_MODE_MA(uint32_t mode, uint64_t* startx, uint6
 	// We compute key in the positive and negative way from the center of the group
 
 	// Check starting point
-	CHECK_HASH_SEARCH_MODE_MA(GRP_SIZE / 2);
+	unified_check_hash<Mode>(mode, px, py, KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2, target_data, param1, param2, maxFound, out);
 
 	ModNeg256(pyn, py);
 
-	for (i = 0; i < HSIZE; i++) {
+	for (i = 0; i < KeyHuntConstants::ELLIPTIC_CURVE_HALF_GROUP_SIZE; i++) {
 
 		// P = StartPoint + i*G
 		Load256(px, sx);
 		Load256(py, sy);
 		compute_ec_point_add(px, py, Gx + 4 * i, Gy + 4 * i, dx[i]);
 
-		CHECK_HASH_SEARCH_MODE_MA(GRP_SIZE / 2 + (i + 1));
+		unified_check_hash<Mode>(mode, px, py, KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + (i + 1), target_data, param1, param2, maxFound, out);
 
 		// P = StartPoint - i*G, if (x,y) = i*G then (x,-y) = -i*G
 		Load256(px, sx);
 		compute_ec_point_add_negative(px, py, pyn, Gx + 4 * i, Gy + 4 * i, dx[i]);
 
-		CHECK_HASH_SEARCH_MODE_MA(GRP_SIZE / 2 - (i + 1));
+		unified_check_hash<Mode>(mode, px, py, KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 - (i + 1), target_data, param1, param2, maxFound, out);
 
 	}
 
@@ -568,7 +502,7 @@ __device__ void ComputeKeysSEARCH_MODE_MA(uint32_t mode, uint64_t* startx, uint6
 	Load256(py, sy);
 	compute_ec_point_add_special(px, py, Gx + 4 * i, Gy + 4 * i, dx[i], true);
 
-	CHECK_HASH_SEARCH_MODE_MA(0);
+	unified_check_hash<Mode>(mode, px, py, 0, target_data, param1, param2, maxFound, out);
 
 	i++;
 
@@ -577,13 +511,20 @@ __device__ void ComputeKeysSEARCH_MODE_MA(uint32_t mode, uint64_t* startx, uint6
 	Load256(py, sy);
 	compute_ec_point_add(px, py, _2Gnx, _2Gny, dx[i + 1]);
 
-
 	// Update starting point
 	__syncthreads();
 	Store256A(startx, px);
 	Store256A(starty, py);
-
 }
+
+// Legacy function wrappers for backward compatibility
+__device__ void ComputeKeysSEARCH_MODE_MA(uint32_t mode, uint64_t* startx, uint64_t* starty,
+	uint8_t* bloomLookUp, int BLOOM_BITS, uint8_t BLOOM_HASHES, uint32_t maxFound, uint32_t* out)
+{
+	ComputeKeysUnified<SearchMode::MODE_MA>(mode, startx, starty, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out);
+}
+
+
 
 // -----------------------------------------------------------------------------------------
 
@@ -611,80 +552,8 @@ __device__ __noinline__ void CheckHashSEARCH_MODE_SA(uint32_t mode, uint64_t* px
 __device__ void ComputeKeysSEARCH_MODE_SA(uint32_t mode, uint64_t* startx, uint64_t* starty,
 	uint32_t* hash160, uint32_t maxFound, uint32_t* out)
 {
-
-	uint64_t dx[GRP_SIZE / 2 + 1][4];
-	uint64_t px[4];
-	uint64_t py[4];
-	uint64_t pyn[4];
-	uint64_t sx[4];
-	uint64_t sy[4];
-	uint64_t dy[4];
-	uint64_t _s[4];
-	uint64_t _p2[4];
-
-	// Load starting key
-	__syncthreads();
-	Load256A(sx, startx);
-	Load256A(sy, starty);
-	Load256(px, sx);
-	Load256(py, sy);
-
-	// Fill group with delta x
-	uint32_t i;
-	for (i = 0; i < HSIZE; i++)
-		ModSub256(dx[i], Gx + 4 * i, sx);
-	ModSub256(dx[i], Gx + 4 * i, sx);   // For the first point
-	ModSub256(dx[i + 1], _2Gnx, sx); // For the next center point
-
-	// Compute modular inverse
-	_ModInvGrouped(dx);
-
-	// We use the fact that P + i*G and P - i*G has the same deltax, so the same inverse
-	// We compute key in the positive and negative way from the center of the group
-
-	// Check starting point
-	CHECK_HASH_SEARCH_MODE_SA(GRP_SIZE / 2);
-
-	ModNeg256(pyn, py);
-
-	for (i = 0; i < HSIZE; i++) {
-
-		// P = StartPoint + i*G
-		Load256(px, sx);
-		Load256(py, sy);
-		compute_ec_point_add(px, py, Gx + 4 * i, Gy + 4 * i, dx[i]);
-
-		CHECK_HASH_SEARCH_MODE_SA(GRP_SIZE / 2 + (i + 1));
-
-		// P = StartPoint - i*G, if (x,y) = i*G then (x,-y) = -i*G
-		Load256(px, sx);
-		compute_ec_point_add_negative(px, py, pyn, Gx + 4 * i, Gy + 4 * i, dx[i]);
-
-		CHECK_HASH_SEARCH_MODE_SA(GRP_SIZE / 2 - (i + 1));
-
-	}
-
-	// First point (startP - (GRP_SZIE/2)*G)
-	Load256(px, sx);
-	Load256(py, sy);
-	compute_ec_point_add_special(px, py, Gx + 4 * i, Gy + 4 * i, dx[i], true);
-
-	CHECK_HASH_SEARCH_MODE_SA(0);
-
-	i++;
-
-	// Next start point (startP + GRP_SIZE*G)
-	Load256(px, sx);
-	Load256(py, sy);
-	compute_ec_point_add(px, py, _2Gnx, _2Gny, dx[i + 1]);
-
-	// Update starting point
-	__syncthreads();
-	Store256A(startx, px);
-	Store256A(starty, py);
-
+	ComputeKeysUnified<SearchMode::MODE_SA>(mode, startx, starty, hash160, 0, 0, maxFound, out);
 }
-
 
 
 // -----------------------------------------------------------------------------------------
@@ -694,79 +563,10 @@ __device__ void ComputeKeysSEARCH_MODE_SA(uint32_t mode, uint64_t* startx, uint6
 __device__ void ComputeKeysSEARCH_MODE_MX(uint32_t mode, uint64_t* startx, uint64_t* starty,
 	uint8_t* bloomLookUp, int BLOOM_BITS, uint8_t BLOOM_HASHES, uint32_t maxFound, uint32_t* out)
 {
-
-	uint64_t dx[GRP_SIZE / 2 + 1][4];
-	uint64_t px[4];
-	uint64_t py[4];
-	uint64_t pyn[4];
-	uint64_t sx[4];
-	uint64_t sy[4];
-	uint64_t dy[4];
-	uint64_t _s[4];
-	uint64_t _p2[4];
-
-	// Load starting key
-	__syncthreads();
-	Load256A(sx, startx);
-	Load256A(sy, starty);
-	Load256(px, sx);
-	Load256(py, sy);
-
-	// Fill group with delta x
-	uint32_t i;
-	for (i = 0; i < HSIZE; i++)
-		ModSub256(dx[i], Gx + 4 * i, sx);
-	ModSub256(dx[i], Gx + 4 * i, sx);   // For the first point
-	ModSub256(dx[i + 1], _2Gnx, sx); // For the next center point
-
-	// Compute modular inverse
-	_ModInvGrouped(dx);
-
-	// We use the fact that P + i*G and P - i*G has the same deltax, so the same inverse
-	// We compute key in the positive and negative way from the center of the group
-
-	// Check starting point
-	CHECK_PUB_SEARCH_MODE_MX(GRP_SIZE / 2);
-
-	ModNeg256(pyn, py);
-
-	for (i = 0; i < HSIZE; i++) {
-
-		// P = StartPoint + i*G
-		Load256(px, sx);
-		Load256(py, sy);
-		compute_ec_point_add(px, py, Gx + 4 * i, Gy + 4 * i, dx[i]);
-
-		CHECK_PUB_SEARCH_MODE_MX(GRP_SIZE / 2 + (i + 1));
-
-		// P = StartPoint - i*G, if (x,y) = i*G then (x,-y) = -i*G
-		Load256(px, sx);
-		compute_ec_point_add_negative(px, py, pyn, Gx + 4 * i, Gy + 4 * i, dx[i]);
-
-		CHECK_PUB_SEARCH_MODE_MX(GRP_SIZE / 2 - (i + 1));
-
-	}
-
-	// First point (startP - (GRP_SZIE/2)*G)
-	Load256(px, sx);
-	Load256(py, sy);
-	compute_ec_point_add_special(px, py, Gx + 4 * i, Gy + 4 * i, dx[i], true);
-
-	CHECK_PUB_SEARCH_MODE_MX(0);
-
-	i++;
-
-	// Next start point (startP + GRP_SIZE*G)
-	Load256(px, sx);
-	Load256(py, sy);
-	compute_ec_point_add(px, py, _2Gnx, _2Gny, dx[i + 1]);
-
-	// Update starting point
-	__syncthreads();
-	Store256A(startx, px);
-	Store256A(starty, py);
-
+	ComputeKeysUnified<SearchMode::MODE_MX>(mode, startx, starty, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out);
 }
+
+
 
 // -----------------------------------------------------------------------------------------
 
@@ -775,104 +575,171 @@ __device__ void ComputeKeysSEARCH_MODE_MX(uint32_t mode, uint64_t* startx, uint6
 __device__ void ComputeKeysSEARCH_MODE_SX(uint32_t mode, uint64_t* startx, uint64_t* starty,
 	uint32_t* xpoint, uint32_t maxFound, uint32_t* out)
 {
-
-	uint64_t dx[GRP_SIZE / 2 + 1][4];
-	uint64_t px[4];
-	uint64_t py[4];
-	uint64_t pyn[4];
-	uint64_t sx[4];
-	uint64_t sy[4];
-	uint64_t dy[4];
-	uint64_t _s[4];
-	uint64_t _p2[4];
-
-	// Load starting key
-	__syncthreads();
-	Load256A(sx, startx);
-	Load256A(sy, starty);
-	Load256(px, sx);
-	Load256(py, sy);
-
-	// Fill group with delta x
-	uint32_t i;
-	for (i = 0; i < HSIZE; i++)
-		ModSub256(dx[i], Gx + 4 * i, sx);
-	ModSub256(dx[i], Gx + 4 * i, sx);      // For the first point
-	ModSub256(dx[i + 1], _2Gnx, sx);       // For the next center point
-
-	// Compute modular inverse
-	_ModInvGrouped(dx);
-
-	// We use the fact that P + i*G and P - i*G has the same deltax, so the same inverse
-	// We compute key in the positive and negative way from the center of the group
-
-	// Check starting point
-	CHECK_PUB_SEARCH_MODE_SX(GRP_SIZE / 2);
-
-	ModNeg256(pyn, py);
-
-	for (i = 0; i < HSIZE; i++) {
-
-		// P = StartPoint + i*G
-		Load256(px, sx);
-		Load256(py, sy);
-		compute_ec_point_add(px, py, Gx + 4 * i, Gy + 4 * i, dx[i]);
-
-		CHECK_PUB_SEARCH_MODE_SX(GRP_SIZE / 2 + (i + 1));
-
-		// P = StartPoint - i*G, if (x,y) = i*G then (x,-y) = -i*G
-		Load256(px, sx);
-		compute_ec_point_add_negative(px, py, pyn, Gx + 4 * i, Gy + 4 * i, dx[i]);
-
-		CHECK_PUB_SEARCH_MODE_SX(GRP_SIZE / 2 - (i + 1));
-
-	}
-
-	// First point (startP - (GRP_SZIE/2)*G)
-	Load256(px, sx);
-	Load256(py, sy);
-	compute_ec_point_add_special(px, py, Gx + 4 * i, Gy + 4 * i, dx[i], true);
-
-	CHECK_PUB_SEARCH_MODE_SX(0);
-
-	i++;
-
-	// Next start point (startP + GRP_SIZE*G)
-	Load256(px, sx);
-	Load256(py, sy);
-	compute_ec_point_add(px, py, _2Gnx, _2Gny, dx[i + 1]);
-
-	// Update starting point
-	__syncthreads();
-	Store256A(startx, px);
-	Store256A(starty, py);
-
+	ComputeKeysUnified<SearchMode::MODE_SX>(mode, startx, starty, xpoint, 0, 0, maxFound, out);
 }
 
+
+
 // ------------------------------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------------------------------
 // -----------------------------------------------------------------------------------------
 // -----------------------------------------------------------------------------------------
 
+// 使用统一接口替换重复的检查函数
+#define CheckPointSEARCH_MODE_MA(_h, incr, mode, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out) \
+    CheckPointUnified<SearchMode::MODE_MA>(_h, incr, mode, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
 
-__device__ __noinline__ void CheckPointSEARCH_ETH_MODE_MA(uint32_t* _h, int32_t incr,
-	uint8_t* bloomLookUp, uint64_t BLOOM_BITS, uint8_t BLOOM_HASHES, uint32_t maxFound, uint32_t* out)
+#define CheckPointSEARCH_MODE_MX(_h, incr, mode, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out) \
+    CheckPointUnified<SearchMode::MODE_MX>(_h, incr, mode, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
+
+// 已被统一接口替代的宏定义 - 删除重复实现
+#define CheckPointSEARCH_MODE_SA(_h, incr, mode, hash160, maxFound, out) \
+    CheckPointUnified<SearchMode::MODE_SA>(_h, incr, mode, hash160, 0, 0, maxFound, out)
+
+#define CheckPointSEARCH_MODE_SX(_h, incr, mode, xpoint, maxFound, out) \
+    CheckPointUnified<SearchMode::MODE_SX>(_h, incr, mode, xpoint, 0, 0, maxFound, out)
+
+#define CheckPointSEARCH_ETH_MODE_MA(_h, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out) \
+    CheckPointUnified<SearchMode::MODE_ETH_MA>(_h, incr, 0, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
+
+#define CheckPointSEARCH_ETH_MODE_SA(_h, incr, mode, hash, param1, param2, maxFound, out) \
+    CheckPointUnified<SearchMode::MODE_ETH_SA>(_h, incr, mode, hash, param1, param2, maxFound, out)
+
+// 统一的检查点函数模板
+template<SearchMode Mode>
+__device__ __forceinline__ void CheckPointUnified(uint32_t* _h, int32_t incr, int32_t mode,
+    const void* target_data, uint64_t param1, uint8_t param2,
+    uint32_t maxFound, uint32_t* out)
 {
-	uint32_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-	if (BloomCheck(_h, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, 20) > 0) {
-		uint32_t pos = atomicAdd(out, 1);
-		if (pos < maxFound) {
-			out[pos * ITEM_SIZE_A32 + 1] = tid;
-			out[pos * ITEM_SIZE_A32 + 2] = (uint32_t)(incr << 16);// | (uint32_t)(mode << 15);// | (uint32_t)(endo);
-			out[pos * ITEM_SIZE_A32 + 3] = _h[0];
-			out[pos * ITEM_SIZE_A32 + 4] = _h[1];
-			out[pos * ITEM_SIZE_A32 + 5] = _h[2];
-			out[pos * ITEM_SIZE_A32 + 6] = _h[3];
-			out[pos * ITEM_SIZE_A32 + 7] = _h[4];
-		}
-	}
+    uint32_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
+    bool match = false;
+    
+    // 根据模式进行不同的匹配检查
+    switch (Mode) {
+        case SearchMode::MODE_MA:
+        case SearchMode::MODE_ETH_MA: {
+            const uint8_t* bloomLookUp = static_cast<const uint8_t*>(target_data);
+            uint64_t BLOOM_BITS = param1;
+            uint8_t BLOOM_HASHES = param2;
+            int K_LENGTH = (Mode == SearchMode::MODE_MA) ? 20 : 20;
+            match = (BloomCheck(_h, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, K_LENGTH) > 0);
+            break;
+        }
+        case SearchMode::MODE_MX: {
+            const uint8_t* bloomLookUp = static_cast<const uint8_t*>(target_data);
+            uint64_t BLOOM_BITS = param1;
+            uint8_t BLOOM_HASHES = param2;
+            match = (BloomCheck(_h, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, 32) > 0);
+            break;
+        }
+        case SearchMode::MODE_SA:
+        case SearchMode::MODE_ETH_SA: {
+            const uint32_t* hash = static_cast<const uint32_t*>(target_data);
+            match = MatchHash(_h, hash);
+            break;
+        }
+        case SearchMode::MODE_SX: {
+            const uint32_t* xpoint = static_cast<const uint32_t*>(target_data);
+            match = MatchXPoint(_h, xpoint);
+            break;
+        }
+    }
+    
+    if (match) {
+        // 处理匹配结果
+        if (Mode == SearchMode::MODE_SA || Mode == SearchMode::MODE_ETH_SA) {
+            // 使用原子比较和交换确保只有一个线程写入结果
+            if (atomicCAS(&found_flag, 0, 1) == 0) {
+                uint32_t pos = atomicAdd(out, 1);
+                if (pos < maxFound) {
+                    int item_size_32 = (Mode == SearchMode::MODE_SA || Mode == SearchMode::MODE_ETH_SA) ? 
+                        ITEM_SIZE_A32 : ITEM_SIZE_X32;
+                    out[pos * item_size_32 + 1] = tid;
+                    out[pos * item_size_32 + 2] = (uint32_t)(incr << 16) | 
+                        (uint32_t)((Mode == SearchMode::MODE_SA || Mode == SearchMode::MODE_ETH_SA) ? mode << 15 : 0);
+                    for (int i = 0; i < 5; i++) {
+                        out[pos * item_size_32 + 3 + i] = _h[i];
+                    }
+                }
+            }
+        } else {
+            uint32_t pos = atomicAdd(out, 1);
+            if (pos < maxFound) {
+                int item_size_32 = (Mode == SearchMode::MODE_MX || Mode == SearchMode::MODE_SX) ? 
+                    ITEM_SIZE_X32 : ITEM_SIZE_A32;
+                out[pos * item_size_32 + 1] = tid;
+                out[pos * item_size_32 + 2] = (uint32_t)(incr << 16) | 
+                    (uint32_t)((Mode == SearchMode::MODE_MA) ? mode << 15 : 0);
+                for (int i = 0; i < ((Mode == SearchMode::MODE_MX || Mode == SearchMode::MODE_SX) ? 8 : 5); i++) {
+                    out[pos * item_size_32 + 3 + i] = _h[i];
+                }
+            }
+        }
+    }
 }
+
+// 统一的哈希检查函数模板
+template<SearchMode Mode>
+__device__ __forceinline__ void CheckHashUnified(uint64_t* px, uint64_t* py, int32_t incr,
+    const void* target_data, uint64_t param1, uint8_t param2,
+    uint32_t maxFound, uint32_t* out)
+{
+    uint32_t h[8]; // 足够容纳哈希或X点数据
+    
+    // 根据模式计算哈希或X点
+    switch (Mode) {
+        case SearchMode::MODE_MA: {
+            // 计算压缩公钥的Bitcoin地址哈希
+            _GetHash160Comp(px, (uint8_t)(py[0] & 1), (uint8_t*)h);
+            break;
+        }
+        case SearchMode::MODE_SA: {
+            // 计算压缩公钥的Bitcoin地址哈希
+            _GetHash160Comp(px, (uint8_t)(py[0] & 1), (uint8_t*)h);
+            break;
+        }
+        case SearchMode::MODE_ETH_MA: {
+            // 计算以太坊地址哈希
+            _GetHashKeccak160(px, py, h);
+            break;
+        }
+        case SearchMode::MODE_ETH_SA: {
+            // 计算以太坊地址哈希
+            _GetHashKeccak160(px, py, h);
+            break;
+        }
+        case SearchMode::MODE_MX:
+        case SearchMode::MODE_SX: {
+            // 复制X坐标
+            for (int i = 0; i < 4; i++) {
+                h[i * 2] = (uint32_t)(px[3 - i] & 0xFFFFFFFF);
+                h[i * 2 + 1] = (uint32_t)(px[3 - i] >> 32);
+            }
+            break;
+        }
+    }
+    
+    // 调用统一的检查点函数
+    CheckPointUnified<Mode>(h, incr, 0, target_data, param1, param2, maxFound, out);
+}
+
+// 为向后兼容保留原始函数名的宏定义
+#define CheckHashCompSEARCH_MODE_MA(px, isOdd, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out) \
+    CheckHashUnified<SearchMode::MODE_MA>(px, nullptr, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
+
+#define CheckHashCompSEARCH_MODE_SA(px, isOdd, incr, hash160, maxFound, out) \
+    CheckHashUnified<SearchMode::MODE_SA>(px, nullptr, incr, hash160, 0, 0, maxFound, out)
+
+#define CheckHashCompSEARCH_ETH_MODE_MA(px, py, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out) \
+    CheckHashSEARCH_ETH_MODE_MA(px, py, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
+
+#define CheckHashCompSEARCH_ETH_MODE_SA(px, py, incr, hash, maxFound, out) \
+    CheckHashSEARCH_ETH_MODE_SA(px, py, incr, hash, maxFound, out)
+
+// ---------------------------------------------------------------------------------------
+
+// 已被统一接口替代的函数 - 删除重复实现
+// __device__ __noinline__ void CheckPointSEARCH_ETH_MODE_MA(...)
 
 
 #define CHECK_POINT_SEARCH_ETH_MODE_MA(_h,incr)  CheckPointSEARCH_ETH_MODE_MA(_h,incr,bloomLookUp,BLOOM_BITS,BLOOM_HASHES,maxFound,out)
@@ -899,7 +766,8 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_MA(uint64_t* startx, uint64_t* starty
 	uint8_t* bloomLookUp, int BLOOM_BITS, uint8_t BLOOM_HASHES, uint32_t maxFound, uint32_t* out)
 {
 
-	uint64_t dx[GRP_SIZE / 2 + 1][4];
+	// 使用统一接口，变量声明已移至统一函数中
+	uint64_t dx[KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1][4];
 	uint64_t px[4];
 	uint64_t py[4];
 	uint64_t pyn[4];
@@ -918,7 +786,7 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_MA(uint64_t* startx, uint64_t* starty
 
 	// Fill group with delta x
 	uint32_t i;
-	for (i = 0; i < HSIZE; i++)
+	for (i = 0; i < KeyHuntConstants::ELLIPTIC_CURVE_HALF_GROUP_SIZE; i++)
 		ModSub256(dx[i], Gx + 4 * i, sx);
 	ModSub256(dx[i], Gx + 4 * i, sx);   // For the first point
 	ModSub256(dx[i + 1], _2Gnx, sx); // For the next center point
@@ -930,24 +798,24 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_MA(uint64_t* startx, uint64_t* starty
 	// We compute key in the positive and negative way from the center of the group
 
 	// Check starting point
-	CHECK_HASH_SEARCH_ETH_MODE_MA(GRP_SIZE / 2);
+	CHECK_HASH_SEARCH_ETH_MODE_MA(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2);
 
 	ModNeg256(pyn, py);
 
-	for (i = 0; i < HSIZE; i++) {
+	for (i = 0; i < KeyHuntConstants::ELLIPTIC_CURVE_HALF_GROUP_SIZE; i++) {
 
 		// P = StartPoint + i*G
 		Load256(px, sx);
 		Load256(py, sy);
 		compute_ec_point_add(px, py, Gx + 4 * i, Gy + 4 * i, dx[i]);
 
-		CHECK_HASH_SEARCH_ETH_MODE_MA(GRP_SIZE / 2 + (i + 1));
+		CHECK_HASH_SEARCH_ETH_MODE_MA(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + (i + 1));
 
 		// P = StartPoint - i*G, if (x,y) = i*G then (x,-y) = -i*G
 		Load256(px, sx);
 		compute_ec_point_add_negative(px, py, pyn, Gx + 4 * i, Gy + 4 * i, dx[i]);
 
-		CHECK_HASH_SEARCH_ETH_MODE_MA(GRP_SIZE / 2 - (i + 1));
+		CHECK_HASH_SEARCH_ETH_MODE_MA(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 - (i + 1));
 
 	}
 
@@ -975,44 +843,48 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_MA(uint64_t* startx, uint64_t* starty
 
 
 
-__device__ __noinline__ void CheckPointSEARCH_MODE_SA(uint32_t* _h, int32_t incr,
-	uint32_t* hash, uint32_t maxFound, uint32_t* out)
-{
-	uint32_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
+// 已被统一接口替代的函数 - 删除重复实现
+// __device__ __noinline__ void CheckPointSEARCH_MODE_SA(uint32_t* _h, int32_t incr, int32_t mode,
+// 	uint32_t* hash, uint32_t maxFound, uint32_t* out)
+// {
+// 	uint32_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
+// 
+// 	if (MatchHash(_h, hash)) {
+// 		// Use atomic compare-and-swap to ensure only one thread writes the result
+// 		if (atomicCAS(&found_flag, 0, 1) == 0) {
+// 			// Only the first thread that finds a match can execute this block
+// 			uint32_t pos = atomicAdd(out, 1);
+// 			if (pos < maxFound) {
+// 				out[pos * ITEM_SIZE_A32 + 1] = tid;
+// 				out[pos * ITEM_SIZE_A32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(mode << 15);// | (uint32_t)(endo);
+// 				out[pos * ITEM_SIZE_A32 + 3] = _h[0];
+// 				out[pos * ITEM_SIZE_A32 + 4] = _h[1];
+// 				out[pos * ITEM_SIZE_A32 + 5] = _h[2];
+// 				out[pos * ITEM_SIZE_A32 + 6] = _h[3];
+// 				out[pos * ITEM_SIZE_A32 + 7] = _h[4];
+// 			}
+// 		}
+// 	}
+// }
 
-	if (MatchHash(_h, hash)) {
-		// Use atomic compare-and-swap to ensure only one thread writes the result
-		if (atomicCAS(&found_flag, 0, 1) == 0) {
-			// Only the first thread that finds a match can execute this block
-			uint32_t pos = atomicAdd(out, 1);
-			if (pos < maxFound) {
-				out[pos * ITEM_SIZE_A32 + 1] = tid;
-				out[pos * ITEM_SIZE_A32 + 2] = (uint32_t)(incr << 16); // | (uint32_t)(mode << 15);// | (uint32_t)(endo);
-				out[pos * ITEM_SIZE_A32 + 3] = _h[0];
-				out[pos * ITEM_SIZE_A32 + 4] = _h[1];
-				out[pos * ITEM_SIZE_A32 + 5] = _h[2];
-				out[pos * ITEM_SIZE_A32 + 6] = _h[3];
-				out[pos * ITEM_SIZE_A32 + 7] = _h[4];
-			}
-		}
-	}
-}
+#define CHECK_POINT_SEARCH_ETH_MODE_SA(_h,incr)  CheckPointSEARCH_ETH_MODE_SA(_h, incr, 0, hash, 0, 0, maxFound, out)
 
-#define CHECK_POINT_SEARCH_ETH_MODE_SA(_h,incr)  CheckPointSEARCH_MODE_SA(_h,incr,hash,maxFound,out)
-
-__device__ __noinline__ void CheckHashCompSEARCH_ETH_MODE_SA(uint64_t* px, uint64_t* py, int32_t incr,
-	uint32_t* hash, uint32_t maxFound, uint32_t* out)
-{
-	uint32_t h[5];
-	_GetHashKeccak160(px, py, h);
-	CHECK_POINT_SEARCH_ETH_MODE_SA(h, incr);
-}
+// 已被统一接口替代的函数 - 删除重复实现
+// 已被统一接口替代的函数 - 删除重复实现
+// __device__ __noinline__ void CheckHashCompSEARCH_ETH_MODE_SA(uint64_t* px, uint64_t* py, int32_t incr,
+// 	uint32_t* hash, uint32_t maxFound, uint32_t* out)
+// {
+// 	uint32_t h[5];
+// 	_GetHashKeccak160(px, py, h);
+// 	CheckPointUnified<SearchMode::MODE_ETH_SA>(h, incr, 0, hash, 0, 0, maxFound, out);
+// }
 
 __device__ __noinline__ void CheckHashSEARCH_ETH_MODE_SA(uint64_t* px, uint64_t* py, int32_t incr,
 	uint32_t* hash, uint32_t maxFound, uint32_t* out)
 {
-	CheckHashCompSEARCH_ETH_MODE_SA(px, py, incr, hash, maxFound, out);
-
+	uint32_t h[5];
+	_GetHashKeccak160(px, py, h);
+	CheckPointSEARCH_ETH_MODE_SA(h, incr, 0, hash, 0, 0, maxFound, out);
 }
 #define CHECK_HASH_SEARCH_ETH_MODE_SA(incr) CheckHashSEARCH_ETH_MODE_SA(px, py, incr, hash, maxFound, out)
 
@@ -1020,7 +892,8 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_SA(uint64_t* startx, uint64_t* starty
 	uint32_t* hash, uint32_t maxFound, uint32_t* out)
 {
 
-	uint64_t dx[GRP_SIZE / 2 + 1][4];
+	// 使用统一接口，变量声明已移至统一函数中
+	uint64_t dx[KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1][4];
 	uint64_t px[4];
 	uint64_t py[4];
 	uint64_t pyn[4];
@@ -1039,7 +912,7 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_SA(uint64_t* startx, uint64_t* starty
 
 	// Fill group with delta x
 	uint32_t i;
-	for (i = 0; i < HSIZE; i++)
+	for (i = 0; i < KeyHuntConstants::ELLIPTIC_CURVE_HALF_GROUP_SIZE; i++)
 		ModSub256(dx[i], Gx + 4 * i, sx);
 	ModSub256(dx[i], Gx + 4 * i, sx);   // For the first point
 	ModSub256(dx[i + 1], _2Gnx, sx); // For the next center point
@@ -1051,24 +924,24 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_SA(uint64_t* startx, uint64_t* starty
 	// We compute key in the positive and negative way from the center of the group
 
 	// Check starting point
-	CHECK_HASH_SEARCH_ETH_MODE_SA(GRP_SIZE / 2);
+	CHECK_HASH_SEARCH_ETH_MODE_SA(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2);
 
 	ModNeg256(pyn, py);
 
-	for (i = 0; i < HSIZE; i++) {
+	for (i = 0; i < KeyHuntConstants::ELLIPTIC_CURVE_HALF_GROUP_SIZE; i++) {
 
 		// P = StartPoint + i*G
 		Load256(px, sx);
 		Load256(py, sy);
 		compute_ec_point_add(px, py, Gx + 4 * i, Gy + 4 * i, dx[i]);
 
-		CHECK_HASH_SEARCH_ETH_MODE_SA(GRP_SIZE / 2 + (i + 1));
+		CHECK_HASH_SEARCH_ETH_MODE_SA(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + (i + 1));
 
 		// P = StartPoint - i*G, if (x,y) = i*G then (x,-y) = -i*G
 		Load256(px, sx);
 		compute_ec_point_add_negative(px, py, pyn, Gx + 4 * i, Gy + 4 * i, dx[i]);
 
-		CHECK_HASH_SEARCH_ETH_MODE_SA(GRP_SIZE / 2 - (i + 1));
+		CHECK_HASH_SEARCH_ETH_MODE_SA(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 - (i + 1));
 
 	}
 
@@ -1093,4 +966,4 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_SA(uint64_t* startx, uint64_t* starty
 
 }
 
-
+#endif // GPU_COMPUTE_H

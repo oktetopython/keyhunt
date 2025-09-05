@@ -16,10 +16,11 @@
 
 #include "GPUMath.h"
 #include "GPUHash.h"
-#include "GPUCompute.h"  // 包含原始的检查函数声明
+#include "GPUCompute.h"
 #include "GPUMemoryOptimized.h"  // 内存访问优化
 #include "GPUProfiler.h"  // 设备侧性能分析
 #include "GPUCacheOptimizer.h"  // L1缓存优化
+#include "../Constants.h"
 
 // 搜索模式枚举
 enum class SearchMode : uint32_t {
@@ -58,7 +59,7 @@ __device__ __forceinline__ void unified_check_hash<SearchMode::MODE_MA>(
     uint32_t maxFound, uint32_t* out)
 {
     const uint8_t* bloomLookUp = static_cast<const uint8_t*>(target_data);
-    CheckHashSEARCH_MODE_MA(mode, px, py, incr, bloomLookUp, bloom_bits, bloom_hashes, maxFound, out);
+    CheckHashSEARCH_MODE_MA(mode, px, py, incr, const_cast<uint8_t*>(bloomLookUp), bloom_bits, bloom_hashes, maxFound, out);
 }
 
 // SA模式特化 - 单地址哈希检查
@@ -69,7 +70,7 @@ __device__ __forceinline__ void unified_check_hash<SearchMode::MODE_SA>(
     uint32_t maxFound, uint32_t* out)
 {
     const uint32_t* hash160 = static_cast<const uint32_t*>(target_data);
-    CheckHashSEARCH_MODE_SA(mode, px, py, incr, hash160, maxFound, out);
+    CheckHashSEARCH_MODE_SA(mode, px, py, incr, const_cast<uint32_t*>(hash160), maxFound, out);
 }
 
 // MX模式特化 - 多X坐标检查
@@ -80,7 +81,7 @@ __device__ __forceinline__ void unified_check_hash<SearchMode::MODE_MX>(
     uint32_t maxFound, uint32_t* out)
 {
     const uint8_t* bloomLookUp = static_cast<const uint8_t*>(target_data);
-    CheckPubSEARCH_MODE_MX(mode, px, py, incr, bloomLookUp, bloom_bits, bloom_hashes, maxFound, out);
+    CheckPubSEARCH_MODE_MX(mode, px, py, incr, const_cast<uint8_t*>(bloomLookUp), bloom_bits, bloom_hashes, maxFound, out);
 }
 
 // SX模式特化 - 单X坐标检查
@@ -91,7 +92,7 @@ __device__ __forceinline__ void unified_check_hash<SearchMode::MODE_SX>(
     uint32_t maxFound, uint32_t* out)
 {
     const uint32_t* xpoint = static_cast<const uint32_t*>(target_data);
-    CheckPubSEARCH_MODE_SX(mode, px, py, incr, xpoint, maxFound, out);
+    CheckPubSEARCH_MODE_SX(mode, px, py, incr, const_cast<uint32_t*>(xpoint), maxFound, out);
 }
 
 // 以太坊MA模式特化
@@ -102,7 +103,7 @@ __device__ __forceinline__ void unified_check_hash<SearchMode::MODE_ETH_MA>(
     uint32_t maxFound, uint32_t* out)
 {
     const uint8_t* bloomLookUp = static_cast<const uint8_t*>(target_data);
-    CheckHashSEARCH_ETH_MODE_MA(px, py, incr, bloomLookUp, bloom_bits, bloom_hashes, maxFound, out);
+    CheckHashSEARCH_ETH_MODE_MA(px, py, incr, const_cast<uint8_t*>(bloomLookUp), bloom_bits, bloom_hashes, maxFound, out);
 }
 
 // 以太坊SA模式特化
@@ -113,7 +114,7 @@ __device__ __forceinline__ void unified_check_hash<SearchMode::MODE_ETH_SA>(
     uint32_t maxFound, uint32_t* out)
 {
     const uint32_t* hash = static_cast<const uint32_t*>(target_data);
-    CheckHashSEARCH_ETH_MODE_SA(px, py, incr, hash, maxFound, out);
+    CheckHashSEARCH_ETH_MODE_SA(px, py, incr, const_cast<uint32_t*>(hash), maxFound, out);
 }
 
 // 统一的椭圆曲线计算核心函数
@@ -150,36 +151,13 @@ __device__ void unified_compute_keys_core(
     // 多层次内存优化的delta x计算 - 减少非合并访问，提升L1缓存命中率
     uint32_t i;
 
-    #ifdef KEYHUNT_CACHE_OPTIMIZED
-    // L1缓存优化路径 - 使用__ldg和预取
-    __shared__ uint64_t shared_sx[4];
-    if (threadIdx.x == 0) {
-        Load256(shared_sx, sx);
-    }
-    __syncthreads();
-
-    // 缓存感知的计算
-    compute_dx_cache_optimized(dx, shared_sx, HSIZE + 2);
-
-    #elif defined(KEYHUNT_MEMORY_OPTIMIZED)
-    // 内存访问优化路径 - 使用共享内存缓存
-    __shared__ uint64_t shared_sx[4];
-    if (threadIdx.x == 0) {
-        Load256(shared_sx, sx);
-    }
-    __syncthreads();
-
-    // 优化的访问模式
-    for (i = 0; i < HSIZE; i++) {
-        uint64_t temp_gx[4];
-        load_Gx_Gy_cached(i, temp_gx, nullptr);
-        ModSub256(dx[i], temp_gx, shared_sx);
-    }
-    uint64_t temp_gx[4];
-    load_Gx_Gy_cached(i, temp_gx, nullptr);
-    ModSub256(dx[i], temp_gx, shared_sx);     // For the first point
-    ModSub256(dx[i + 1], _2Gnx, shared_sx);  // For the next center point
-
+    #ifdef KEYHUNT_SIMPLE_OPTIMIZED
+    // 简化版优化 - 仅使用 __ldg 指令访问只读数据
+    for (i = 0; i < HSIZE; i++)
+        ModSub256(dx[i], LOAD_GX(i), sx);
+    ModSub256(dx[i], LOAD_GX(i), sx);     // For the first point
+    ModSub256(dx[i + 1], _2Gnx, sx);      // For the next center point
+    
     #else
     // 原始访问模式
     for (i = 0; i < HSIZE; i++)
@@ -206,13 +184,17 @@ __device__ void unified_compute_keys_core(
         Load256(px, sx);
         Load256(py, sy);
 
-        #ifdef KEYHUNT_CACHE_OPTIMIZED
+        #ifdef KEYHUNT_SIMPLE_OPTIMIZED
+        // 简化版优化 - 使用__ldg指令
         uint64_t temp_gx[4], temp_gy[4];
-        load_Gx_Gy_cache_aware(i, temp_gx, temp_gy);
-        compute_ec_point_add_profiled(px, py, temp_gx, temp_gy, dx[i]);
-        #elif defined(KEYHUNT_MEMORY_OPTIMIZED)
-        uint64_t temp_gx[4], temp_gy[4];
-        load_Gx_Gy_cached(i, temp_gx, temp_gy);
+        temp_gx[0] = LOAD_GX(i);
+        temp_gx[1] = LOAD_GX(i + 1);
+        temp_gx[2] = LOAD_GX(i + 2);
+        temp_gx[3] = LOAD_GX(i + 3);
+        temp_gy[0] = LOAD_GY(i);
+        temp_gy[1] = LOAD_GY(i + 1);
+        temp_gy[2] = LOAD_GY(i + 2);
+        temp_gy[3] = LOAD_GY(i + 3);
         compute_ec_point_add_profiled(px, py, temp_gx, temp_gy, dx[i]);
         #else
         compute_ec_point_add_profiled(px, py, Gx + 4 * i, Gy + 4 * i, dx[i]);
@@ -223,15 +205,11 @@ __device__ void unified_compute_keys_core(
         // P = StartPoint - i*G, if (x,y) = i*G then (x,-y) = -i*G
         Load256(px, sx);
 
-        #ifdef KEYHUNT_CACHE_OPTIMIZED
-        compute_ec_point_add_negative_profiled(px, py, pyn, temp_gx, temp_gy, dx[i]);
-        #elif defined(KEYHUNT_MEMORY_OPTIMIZED)
+        #ifdef KEYHUNT_SIMPLE_OPTIMIZED
         compute_ec_point_add_negative_profiled(px, py, pyn, temp_gx, temp_gy, dx[i]);
         #else
         compute_ec_point_add_negative_profiled(px, py, pyn, Gx + 4 * i, Gy + 4 * i, dx[i]);
         #endif
-
-        unified_check_hash<Mode>(mode, px, py, GRP_SIZE / 2 - (i + 1), target_data, param1, param2, maxFound, out);
     }
 
     // 统一的边界点处理 - 消除重复
@@ -239,9 +217,16 @@ __device__ void unified_compute_keys_core(
     Load256(px, sx);
     Load256(py, sy);
 
-    #ifdef KEYHUNT_MEMORY_OPTIMIZED
+    #ifdef KEYHUNT_SIMPLE_OPTIMIZED
     uint64_t temp_gx[4], temp_gy[4];
-    load_Gx_Gy_cached(i, temp_gx, temp_gy);
+    temp_gx[0] = LOAD_GX(i);
+    temp_gx[1] = LOAD_GX(i + 1);
+    temp_gx[2] = LOAD_GX(i + 2);
+    temp_gx[3] = LOAD_GX(i + 3);
+    temp_gy[0] = LOAD_GY(i);
+    temp_gy[1] = LOAD_GY(i + 1);
+    temp_gy[2] = LOAD_GY(i + 2);
+    temp_gy[3] = LOAD_GY(i + 3);
     compute_ec_point_add_special(px, py, temp_gx, temp_gy, dx[i], true);
     #else
     compute_ec_point_add_special(px, py, Gx + 4 * i, Gy + 4 * i, dx[i], true);
@@ -272,7 +257,7 @@ template<SearchMode Mode, CompressionMode Comp, CoinType Coin>
 __global__ void unified_compute_keys_kernel(
     uint32_t mode,
     const void* target_data,
-    uint32_t param1,  // bloom_bits, bloom_hashes等
+    uint32_t param1,
     uint32_t param2,
     uint64_t* keys,
     uint32_t maxFound,

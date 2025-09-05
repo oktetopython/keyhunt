@@ -75,23 +75,37 @@ public:
 	int GetNbThread();
 	int GetGroupSize();
 
+	// Template function to encapsulate common kernel call pattern
+	template<typename KernelFunc>
+	bool callKernelWithErrorCheck(KernelFunc kernelFunc, bool resetFoundFlag = false);
+
+	// Getter methods for unified kernel interface
+	int getNbThread() const { return nbThread; }
+	int getNbThreadPerGroup() const { return nbThreadPerGroup; }
+	uint32_t getCompMode() const { return compMode; }
+	uint32_t getSearchMode() const { return searchMode; }
+	uint32_t getCoinType() const { return coinType; }
+	uint32_t getMaxFound() const { return maxFound; }
+	uint64_t getBloomBits() const { return BLOOM_BITS; }
+	uint8_t getBloomHashes() const { return BLOOM_HASHES; }
+	uint32_t* getInputHashORxpoint() const { return inputHashORxpoint; }
+	uint8_t* getInputBloomLookUp() const { return inputBloomLookUp; }
+	uint64_t* getInputKey() const { return inputKey; }
+	uint32_t* getOutputBuffer() const { return outputBuffer; }
+
 	//bool Check(Secp256K1 *secp);
 	std::string deviceName;
 
 	static void PrintCudaInfo();
 	static void GenerateCode(Secp256K1* secp, int size);
 
-private:
+protected:
 	void InitGenratorTable(Secp256K1* secp);
 
 	bool callKernelSEARCH_MODE_MA();
 	bool callKernelSEARCH_MODE_SA();
 	bool callKernelSEARCH_MODE_MX();
 	bool callKernelSEARCH_MODE_SX();
-
-	// Template function to encapsulate common kernel call pattern
-	template<typename KernelFunc>
-	bool callKernelWithErrorCheck(KernelFunc kernelFunc, bool resetFoundFlag = false);
 
 	// Template function to encapsulate common launch pattern
 	template<typename KernelFunc>
@@ -101,6 +115,7 @@ private:
 
 	int CheckBinary(const uint8_t* x, int K_LENGTH);
 
+public:
 	int nbThread;
 	int nbThreadPerGroup;
 

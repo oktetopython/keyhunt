@@ -33,32 +33,32 @@ class UnifiedKernelLauncher<SearchMode::MODE_MA> {
 public:
     static bool launch(GPUEngine* engine) {
         return engine->callKernelWithErrorCheck([engine]() {
-            if (engine->coinType == COIN_BTC) {
-                if (engine->compMode == SEARCH_COMPRESSED) {
+            if (engine->getCoinType() == COIN_BTC) {
+                if (engine->getCompMode() == SEARCH_COMPRESSED) {
                     launch_unified_kernel<SearchMode::MODE_MA>(
-                        engine->compMode,
-                        engine->inputBloomLookUp,
-                        engine->BLOOM_BITS,
-                        engine->BLOOM_HASHES,
-                        engine->inputKey,
-                        engine->maxFound,
-                        engine->outputBuffer,
-                        engine->nbThread / engine->nbThreadPerGroup,
-                        engine->nbThreadPerGroup,
+                        engine->getCompMode(),
+                        engine->getInputBloomLookUp(),
+                        engine->getBloomBits(),
+                        engine->getBloomHashes(),
+                        engine->getInputKey(),
+                        engine->getMaxFound(),
+                        engine->getOutputBuffer(),
+                        engine->getNbThread() / engine->getNbThreadPerGroup(),
+                        engine->getNbThreadPerGroup(),
                         CompressionMode::COMPRESSED,
                         CoinType::BITCOIN
                     );
                 } else {
                     launch_unified_kernel<SearchMode::MODE_MA>(
-                        engine->compMode,
-                        engine->inputBloomLookUp,
-                        engine->BLOOM_BITS,
-                        engine->BLOOM_HASHES,
-                        engine->inputKey,
-                        engine->maxFound,
-                        engine->outputBuffer,
-                        engine->nbThread / engine->nbThreadPerGroup,
-                        engine->nbThreadPerGroup,
+                        engine->getCompMode(),
+                        engine->getInputBloomLookUp(),
+                        engine->getBloomBits(),
+                        engine->getBloomHashes(),
+                        engine->getInputKey(),
+                        engine->getMaxFound(),
+                        engine->getOutputBuffer(),
+                        engine->getNbThread() / engine->getNbThreadPerGroup(),
+                        engine->getNbThreadPerGroup(),
                         CompressionMode::UNCOMPRESSED,
                         CoinType::BITCOIN
                     );
@@ -66,14 +66,14 @@ public:
             } else {
                 launch_unified_kernel<SearchMode::MODE_ETH_MA>(
                     0, // mode parameter for ETH
-                    engine->inputBloomLookUp,
-                    engine->BLOOM_BITS,
-                    engine->BLOOM_HASHES,
-                    engine->inputKey,
-                    engine->maxFound,
-                    engine->outputBuffer,
-                    engine->nbThread / engine->nbThreadPerGroup,
-                    engine->nbThreadPerGroup,
+                    engine->getInputBloomLookUp(),
+                    engine->getBloomBits(),
+                    engine->getBloomHashes(),
+                    engine->getInputKey(),
+                    engine->getMaxFound(),
+                    engine->getOutputBuffer(),
+                    engine->getNbThread() / engine->getNbThreadPerGroup(),
+                    engine->getNbThreadPerGroup(),
                     CompressionMode::COMPRESSED,
                     CoinType::ETHEREUM
                 );
@@ -88,30 +88,30 @@ class UnifiedKernelLauncher<SearchMode::MODE_SA> {
 public:
     static bool launch(GPUEngine* engine) {
         return engine->callKernelWithErrorCheck([engine]() {
-            if (engine->coinType == COIN_BTC) {
-                if (engine->compMode == SEARCH_COMPRESSED) {
+            if (engine->getCoinType() == COIN_BTC) {
+                if (engine->getCompMode() == SEARCH_COMPRESSED) {
                     launch_unified_kernel<SearchMode::MODE_SA>(
-                        engine->compMode,
-                        engine->inputHashORxpoint,
+                        engine->getCompMode(),
+                        engine->getInputHashORxpoint(),
                         0, 0, // 单地址模式不需要bloom参数
-                        engine->inputKey,
-                        engine->maxFound,
-                        engine->outputBuffer,
-                        engine->nbThread / engine->nbThreadPerGroup,
-                        engine->nbThreadPerGroup,
+                        engine->getInputKey(),
+                        engine->getMaxFound(),
+                        engine->getOutputBuffer(),
+                        engine->getNbThread() / engine->getNbThreadPerGroup(),
+                        engine->getNbThreadPerGroup(),
                         CompressionMode::COMPRESSED,
                         CoinType::BITCOIN
                     );
                 } else {
                     launch_unified_kernel<SearchMode::MODE_SA>(
-                        engine->compMode,
-                        engine->inputHashORxpoint,
+                        engine->getCompMode(),
+                        engine->getInputHashORxpoint(),
                         0, 0,
-                        engine->inputKey,
-                        engine->maxFound,
-                        engine->outputBuffer,
-                        engine->nbThread / engine->nbThreadPerGroup,
-                        engine->nbThreadPerGroup,
+                        engine->getInputKey(),
+                        engine->getMaxFound(),
+                        engine->getOutputBuffer(),
+                        engine->getNbThread() / engine->getNbThreadPerGroup(),
+                        engine->getNbThreadPerGroup(),
                         CompressionMode::UNCOMPRESSED,
                         CoinType::BITCOIN
                     );
@@ -119,13 +119,13 @@ public:
             } else {
                 launch_unified_kernel<SearchMode::MODE_ETH_SA>(
                     0,
-                    engine->inputHashORxpoint,
+                    engine->getInputHashORxpoint(),
                     0, 0,
-                    engine->inputKey,
-                    engine->maxFound,
-                    engine->outputBuffer,
-                    engine->nbThread / engine->nbThreadPerGroup,
-                    engine->nbThreadPerGroup,
+                    engine->getInputKey(),
+                    engine->getMaxFound(),
+                    engine->getOutputBuffer(),
+                    engine->getNbThread() / engine->getNbThreadPerGroup(),
+                    engine->getNbThreadPerGroup(),
                     CompressionMode::COMPRESSED,
                     CoinType::ETHEREUM
                 );
@@ -140,20 +140,27 @@ class UnifiedKernelLauncher<SearchMode::MODE_MX> {
 public:
     static bool launch(GPUEngine* engine) {
         return engine->callKernelWithErrorCheck([engine]() {
-            if (engine->compMode == SEARCH_COMPRESSED) {
+            if (engine->getCompMode() == SEARCH_COMPRESSED) {
                 launch_unified_kernel<SearchMode::MODE_MX>(
-                    engine->compMode,
-                    engine->inputBloomLookUp,
-                    engine->BLOOM_BITS,
-                    engine->BLOOM_HASHES,
-                    engine->inputKey,
-                    engine->maxFound,
-                    engine->outputBuffer,
-                    engine->nbThread / engine->nbThreadPerGroup,
-                    engine->nbThreadPerGroup,
+                    engine->getCompMode(),
+                    engine->getInputBloomLookUp(),
+                    engine->getBloomBits(),
+                    engine->getBloomHashes(),
+                    engine->getInputKey(),
+                    engine->getMaxFound(),
+                    engine->getOutputBuffer(),
+                    engine->getNbThread() / engine->getNbThreadPerGroup(),
+                    engine->getNbThreadPerGroup(),
                     CompressionMode::COMPRESSED,
                     CoinType::BITCOIN
                 );
+                // Check for kernel launch errors
+                cudaError_t err = cudaGetLastError();
+                if (err != cudaSuccess) {
+                    printf("GPU Kernel launch failed: %s\n", cudaGetErrorString(err));
+                    return false;
+                }
+                return true;
             } else {
                 printf("GPUEngine: PubKeys search doesn't support uncompressed\n");
                 return false;
@@ -168,19 +175,26 @@ class UnifiedKernelLauncher<SearchMode::MODE_SX> {
 public:
     static bool launch(GPUEngine* engine) {
         return engine->callKernelWithErrorCheck([engine]() {
-            if (engine->compMode == SEARCH_COMPRESSED) {
+            if (engine->getCompMode() == SEARCH_COMPRESSED) {
                 launch_unified_kernel<SearchMode::MODE_SX>(
-                    engine->compMode,
-                    engine->inputHashORxpoint,
+                    engine->getCompMode(),
+                    engine->getInputHashORxpoint(),
                     0, 0,
-                    engine->inputKey,
-                    engine->maxFound,
-                    engine->outputBuffer,
-                    engine->nbThread / engine->nbThreadPerGroup,
-                    engine->nbThreadPerGroup,
+                    engine->getInputKey(),
+                    engine->getMaxFound(),
+                    engine->getOutputBuffer(),
+                    engine->getNbThread() / engine->getNbThreadPerGroup(),
+                    engine->getNbThreadPerGroup(),
                     CompressionMode::COMPRESSED,
                     CoinType::BITCOIN
                 );
+                // Check for kernel launch errors
+                cudaError_t err = cudaGetLastError();
+                if (err != cudaSuccess) {
+                    printf("GPU Kernel launch failed: %s\n", cudaGetErrorString(err));
+                    return false;
+                }
+                return true;
             } else {
                 printf("GPUEngine: PubKeys search doesn't support uncompressed\n");
                 return false;

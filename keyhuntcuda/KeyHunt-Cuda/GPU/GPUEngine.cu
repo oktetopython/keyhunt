@@ -40,8 +40,8 @@
 // Flag to control which backend to use - DISABLED for standalone KeyHunt
 const bool use_gECC_backend = false;
 
-// NEW: 临时禁用统一内核接口以恢复性能 (修复性能问题)
-const bool use_unified_kernels = false;
+// NEW: 启用统一内核接口以减少代码重复
+const bool use_unified_kernels = true;
 
 // Forward declaration for the reset function
 __global__ void reset_found_flag();
@@ -571,7 +571,7 @@ void GPUEngine::InitGenratorTable(Secp256K1* secp)
 	uint64_t* GxPinned;
 	uint64_t* GyPinned;
 
-	uint64_t size = (uint64_t)GRP_SIZE;
+	uint64_t size = (uint64_t)KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE;
 
 	// Allocate generator table memory using unified memory management
 	if (!allocate_cuda_memory_pair((void**)&__2Gnx, (void**)&_2GnxPinned, 4 * sizeof(uint64_t), "2Gnx generator")) {
@@ -646,7 +646,7 @@ void GPUEngine::InitGenratorTable(Secp256K1* secp)
 
 int GPUEngine::GetGroupSize()
 {
-	return GRP_SIZE;
+	return KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE;
 }
 
 // ----------------------------------------------------------------------------
