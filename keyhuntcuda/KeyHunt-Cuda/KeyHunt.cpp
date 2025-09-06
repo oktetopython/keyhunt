@@ -29,6 +29,12 @@ KeyHunt::KeyHunt(const std::string& inputFile, int compMode, int searchMode, int
 	const std::string& outputFile, bool useSSE, uint32_t maxFound, uint64_t rKey,
 	const std::string& rangeStart, const std::string& rangeEnd, bool& should_exit)
 {
+	// 初始化所有指针为nullptr，防止空指针解引用
+	secp = nullptr;
+	bloom = nullptr;
+	DATA = nullptr;
+	// dataPtr是std::unique_ptr，会自动初始化
+	
 	this->compMode = compMode;
 	this->useGpu = useGpu;
 	this->outputFile = outputFile;
@@ -49,21 +55,23 @@ KeyHunt::KeyHunt(const std::string& inputFile, int compMode, int searchMode, int
 	secp->Init();
 
 	// load file
-	FILE* wfd;
 	uint64_t N = 0;
 
-	wfd = fopen(this->inputFile.c_str(), "rb");
-	if (!wfd) {
+	// 使用RAII文件处理，确保文件正确关闭
+	FILE* wfd = fopen(this->inputFile.c_str(), "rb");
+	FileGuard fileGuard(wfd);
+	
+	if (!fileGuard.get()) {
 		printf("%s can not open\n", this->inputFile.c_str());
 		exit(1);
 	}
 
 #ifdef WIN64
-	_fseeki64(wfd, 0, SEEK_END);
-	N = _ftelli64(wfd);
+	_fseeki64(fileGuard.get(), 0, SEEK_END);
+	N = _ftelli64(fileGuard.get());
 #else
-	fseek(wfd, 0, SEEK_END);
-	N = ftell(wfd);
+	fseek(fileGuard.get(), 0, SEEK_END);
+	N = ftell(fileGuard.get());
 #endif
 
 	int K_LENGTH = 20;
@@ -71,12 +79,14 @@ KeyHunt::KeyHunt(const std::string& inputFile, int compMode, int searchMode, int
 		K_LENGTH = 32;
 
 	N = N / K_LENGTH;
-	rewind(wfd);
+	rewind(fileGuard.get());
 
-	DATA = (uint8_t*)malloc(N * K_LENGTH);
+	// 使用智能指针管理DATA内存，防止内存泄漏
+	dataPtr = std::make_unique<uint8_t[]>(N * K_LENGTH);
+	DATA = dataPtr.get();
 	memset(DATA, 0, N * K_LENGTH);
 
-	uint8_t* buf = (uint8_t*)malloc(K_LENGTH);;
+	auto buf = std::make_unique<uint8_t[]>(K_LENGTH);
 
 	bloom = new Bloom(2 * N, 0.000001);
 
@@ -84,11 +94,11 @@ KeyHunt::KeyHunt(const std::string& inputFile, int compMode, int searchMode, int
 	uint64_t i = 0;
 	printf("\n");
 	while (i < N && !should_exit) {
-		memset(buf, 0, K_LENGTH);
+		memset(buf.get(), 0, K_LENGTH);
 		memset(DATA + (i * K_LENGTH), 0, K_LENGTH);
-		if (fread(buf, 1, K_LENGTH, wfd) == K_LENGTH) {
-			bloom->add(buf, K_LENGTH);
-			memcpy(DATA + (i * K_LENGTH), buf, K_LENGTH);
+		if (fread(buf.get(), 1, K_LENGTH, fileGuard.get()) == K_LENGTH) {
+			bloom->add(buf.get(), K_LENGTH);
+			memcpy(DATA + (i * K_LENGTH), buf.get(), K_LENGTH);
 			if ((percent != 0) && i % percent == 0) {
 				printf("\rLoading      : %" PRIu64 " %%", (i / percent));
 				fflush(stdout);
@@ -96,14 +106,12 @@ KeyHunt::KeyHunt(const std::string& inputFile, int compMode, int searchMode, int
 		}
 		i++;
 	}
-	fclose(wfd);
-	free(buf);
+	// fileGuard会在析构时自动关闭文件
 
 	if (should_exit) {
 		delete secp;
 		delete bloom;
-		if (DATA)
-			free(DATA);
+		// dataPtr会自动释放内存
 		exit(0);
 	}
 
@@ -135,6 +143,12 @@ KeyHunt::KeyHunt(const std::vector<unsigned char>& hashORxpoint, int compMode, i
 	bool useGpu, const std::string& outputFile, bool useSSE, uint32_t maxFound, uint64_t rKey,
 	const std::string& rangeStart, const std::string& rangeEnd, bool& should_exit)
 {
+	// 初始化所有指针为nullptr，防止空指针解引用
+	secp = nullptr;
+	bloom = nullptr;
+	DATA = nullptr;
+	// dataPtr是std::unique_ptr，会自动初始化
+	
 	this->compMode = compMode;
 	this->useGpu = useGpu;
 	this->outputFile = outputFile;
@@ -204,11 +218,16 @@ void KeyHunt::InitGenratorTable()
 
 KeyHunt::~KeyHunt()
 {
-	delete secp;
-	if (searchMode == (int)SEARCH_MODE_MA || searchMode == (int)SEARCH_MODE_MX)
+	// 安全删除指针，防止双重释放
+	if (secp) {
+		delete secp;
+		secp = nullptr;
+	}
+	if (bloom) {
 		delete bloom;
-	if (DATA)
-		free(DATA);
+		bloom = nullptr;
+	}
+	// dataPtr会自动释放内存
 }
 
 // ----------------------------------------------------------------------------
@@ -221,57 +240,56 @@ double log1(double x)
 
 void KeyHunt::output(std::string addr, std::string pAddr, std::string pAddrHex, std::string pubKey)
 {
-
+    // 使用RAII锁机制确保线程安全
+    LockGuard lock(
 #ifdef WIN64
-	WaitForSingleObject(ghMutex, INFINITE);
+        ghMutex
 #else
-	pthread_mutex_lock(&ghMutex);
+        ghMutex
 #endif
+    );
 
-	FILE* f = stdout;
-	bool needToClose = false;
+    FILE* f = stdout;
+    bool needToClose = false;
 
-	if (outputFile.length() > 0) {
-		f = fopen(outputFile.c_str(), "a");
-		if (f == NULL) {
-			printf("Cannot open %s for writing\n", outputFile.c_str());
-			f = stdout;
-		}
-		else {
-			needToClose = true;
-		}
-	}
+    if (outputFile.length() > 0) {
+        f = fopen(outputFile.c_str(), "a");
+        if (f == NULL) {
+            printf("Cannot open %s for writing\n", outputFile.c_str());
+            f = stdout;
+        }
+        else {
+            needToClose = true;
+        }
+    }
 
-	if (!needToClose)
-		printf("\n");
+    // 使用RAII文件处理，确保文件正确关闭
+    FileGuard fileGuard(needToClose ? f : nullptr);
+    FILE* outputFilePtr = needToClose ? fileGuard.get() : f;
 
-	fprintf(f, "PubAddress: %s\n", addr.c_str());
-	fprintf(stdout, "\n=================================================================================\n");
-	fprintf(stdout, "PubAddress: %s\n", addr.c_str());
+    if (!needToClose)
+        printf("\n");
 
-	if (coinType == COIN_BTC) {
-		fprintf(f, "Priv (WIF): p2pkh:%s\n", pAddr.c_str());
-		fprintf(stdout, "Priv (WIF): p2pkh:%s\n", pAddr.c_str());
-	}
+    fprintf(outputFilePtr, "PubAddress: %s\n", addr.c_str());
+    fprintf(stdout, "\n=================================================================================\n");
+    fprintf(stdout, "PubAddress: %s\n", addr.c_str());
 
-	fprintf(f, "Priv (HEX): %s\n", pAddrHex.c_str());
-	fprintf(stdout, "Priv (HEX): %s\n", pAddrHex.c_str());
+    if (coinType == COIN_BTC) {
+        fprintf(outputFilePtr, "Priv (WIF): p2pkh:%s\n", pAddr.c_str());
+        fprintf(stdout, "Priv (WIF): p2pkh:%s\n", pAddr.c_str());
+    }
 
-	fprintf(f, "PubK (HEX): %s\n", pubKey.c_str());
-	fprintf(stdout, "PubK (HEX): %s\n", pubKey.c_str());
+    fprintf(outputFilePtr, "Priv (HEX): %s\n", pAddrHex.c_str());
+    fprintf(stdout, "Priv (HEX): %s\n", pAddrHex.c_str());
 
-	fprintf(f, "=================================================================================\n");
-	fprintf(stdout, "=================================================================================\n");
+    fprintf(outputFilePtr, "PubK (HEX): %s\n", pubKey.c_str());
+    fprintf(stdout, "PubK (HEX): %s\n", pubKey.c_str());
 
-	if (needToClose)
-		fclose(f);
+    fprintf(outputFilePtr, "=================================================================================\n");
+    fprintf(stdout, "=================================================================================\n");
 
-#ifdef WIN64
-	ReleaseMutex(ghMutex);
-#else
-	pthread_mutex_unlock(&ghMutex);
-#endif
-
+    // fileGuard会在析构时自动关闭文件（如果需要关闭的话）
+    // 锁会在LockGuard析构时自动释放
 }
 
 // ----------------------------------------------------------------------------
@@ -820,8 +838,7 @@ void KeyHunt::FindKeyCPU(TH_PARAM * ph)
 
 // ----------------------------------------------------------------------------
 
-void KeyHunt::getGPUStartingKeys(Int & tRangeStart, Int & tRangeEnd, int groupSize, int nbThread, Int * keys, Point * p)
-{
+void KeyHunt::getGPUStartingKeys(Int & tRangeStart, Int & tRangeEnd, int groupSize, int nbThread, Int * keys, Point * p){
 
 	Int tRangeDiff(tRangeEnd);
 	Int tRangeStart2(tRangeStart);

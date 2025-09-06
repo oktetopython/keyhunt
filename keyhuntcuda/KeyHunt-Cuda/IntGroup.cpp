@@ -21,7 +21,8 @@ using namespace std;
 
 IntGroup::IntGroup(int size) {
 	this->size = size;
-	subp = (Int*)malloc(size * sizeof(Int));
+	// 使用calloc替代malloc，确保内存被初始化为0
+	subp = (Int*)calloc(size, sizeof(Int));
 }
 
 IntGroup::~IntGroup() {

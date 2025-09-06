@@ -38,7 +38,8 @@ static const int8_t b58digits_map[] = {
 bool DecodeBase58(const char *psz, std::vector<uint8_t> &vch)
 {
 
-    uint8_t digits[256];
+    // 使用std::vector替代固定大小数组，避免缓冲区溢出风险
+    std::vector<uint8_t> digits(256);
 
     // Skip and count leading '1'
     int zeroes = 0;
@@ -69,6 +70,10 @@ bool DecodeBase58(const char *psz, std::vector<uint8_t> &vch)
             carry /= 256;
         }
         while (carry > 0) {
+            // 添加边界检查，防止越界
+            if (digitslen >= (int)digits.size()) {
+                digits.resize(digits.size() * 2);
+            }
             digits[digitslen++] = (uint8_t)(carry % 256);
             carry /= 256;
         }
@@ -93,7 +98,8 @@ std::string EncodeBase58(const unsigned char *pbegin, const unsigned char *pend)
 {
 
     std::string ret;
-    unsigned char digits[256];
+    // 使用std::vector替代固定大小数组，避免缓冲区溢出风险
+    std::vector<unsigned char> digits(256);
 
     // Skip leading zeroes
     while (pbegin != pend && *pbegin == 0) {
@@ -112,6 +118,10 @@ std::string EncodeBase58(const unsigned char *pbegin, const unsigned char *pend)
             carry /= 58;
         }
         while (carry > 0) {
+            // 添加边界检查，防止越界
+            if (digitslen >= (int)digits.size()) {
+                digits.resize(digits.size() * 2);
+            }
             digits[digitslen++] = (unsigned char)(carry % 58);
             carry /= 58;
         }

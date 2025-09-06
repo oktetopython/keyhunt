@@ -473,7 +473,7 @@ std::string Secp256K1::GetPublicKeyHex(bool compressed, Point& pubKey)
 {
 
 	unsigned char publicKeyBytes[128];
-	char tmp[3];
+	char tmp[4]; // 增加到4字节以防止缓冲区溢出
 	std::string ret;
 
 	if (!compressed) {
@@ -510,7 +510,7 @@ std::string Secp256K1::GetPublicKeyHexETH(Point& pubKey)
 {
 
 	unsigned char publicKeyBytes[64];
-	char tmp[3];
+	char tmp[4]; // 增加到4字节以防止缓冲区溢出
 	std::string ret;
 
 	// Full public key
@@ -643,7 +643,6 @@ std::string Secp256K1::GetPrivAddress(bool compressed, Int& privKey)
 //	// Compute checksum
 //	sha256_checksum(address, 33, address + 33);
 //	return EncodeBase58(address, address + 37);
-//
 //
 //}
 

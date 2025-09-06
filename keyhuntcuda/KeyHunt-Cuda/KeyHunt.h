@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 #include "SECP256k1.h"
 #include "Bloom.h"
 #include "GPU/GPUEngine.h"
@@ -12,6 +13,7 @@
 
 #define CPU_GRP_SIZE (1024*2)
 
+// 前向声明
 class KeyHunt;
 
 typedef struct {
@@ -29,6 +31,53 @@ typedef struct {
 	bool rKeyRequest;
 } TH_PARAM;
 
+// RAII锁类，用于自动管理线程同步
+class LockGuard {
+private:
+#ifdef WIN64
+    HANDLE& mutex;
+#else
+    pthread_mutex_t& mutex;
+#endif
+public:
+    LockGuard(
+#ifdef WIN64
+        HANDLE& m
+#else
+        pthread_mutex_t& m
+#endif
+    ) : mutex(m) {
+#ifdef WIN64
+        WaitForSingleObject(mutex, INFINITE);
+#else
+        pthread_mutex_lock(&mutex);
+#endif
+    }
+    ~LockGuard() {
+#ifdef WIN64
+        ReleaseMutex(mutex);
+#else
+        pthread_mutex_unlock(&mutex);
+#endif
+    }
+};
+
+// RAII文件处理类，用于自动管理文件句柄
+class FileGuard {
+private:
+    FILE* file;
+public:
+    FileGuard(FILE* f) : file(f) {}
+    ~FileGuard() {
+        if (file) {
+            fclose(file);
+        }
+    }
+    FILE* get() { return file; }
+    // 禁止拷贝构造和赋值
+    FileGuard(const FileGuard&) = delete;
+    FileGuard& operator=(const FileGuard&) = delete;
+};
 
 class KeyHunt
 {
@@ -119,6 +168,9 @@ private:
 	uint64_t lastrKey;
 
 	uint8_t* DATA;
+	// 使用智能指针管理DATA内存
+	std::unique_ptr<uint8_t[]> dataPtr;
+	
 	uint64_t TOTAL_COUNT;
 	uint64_t BLOOM_N;
 

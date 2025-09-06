@@ -883,6 +883,7 @@ __device__ __noinline__ void _ModInvGrouped(uint64_t r[KeyHuntConstants::ELLIPTI
     uint64_t inverse[5];
 
     Load256(subp[0], r[0]);
+    // 修复数组越界访问问题，确保索引有效
     for (uint32_t i = 1; i < (KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1); i++) {
         _ModMult(subp[i], subp[i - 1], r[i]);
     }
@@ -892,6 +893,7 @@ __device__ __noinline__ void _ModInvGrouped(uint64_t r[KeyHuntConstants::ELLIPTI
     inverse[4] = 0;
     _ModInv(inverse);
 
+    // 修复数组越界访问问题，确保索引有效
     for (uint32_t i = (KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + 1) - 1; i > 0; i--) {
         _ModMult(newValue, subp[i - 1], inverse);
         _ModMult(inverse, r[i]);

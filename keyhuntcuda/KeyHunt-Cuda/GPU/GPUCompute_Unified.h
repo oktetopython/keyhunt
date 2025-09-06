@@ -22,15 +22,7 @@
 #include "GPUCacheOptimizer.h"  // L1缓存优化
 #include "../Constants.h"
 
-// 搜索模式枚举
-enum class SearchMode : uint32_t {
-    MODE_MA = 0,  // Multiple Addresses (布隆过滤器)
-    MODE_SA = 1,  // Single Address (单个哈希)
-    MODE_MX = 2,  // Multiple X-points
-    MODE_SX = 3,  // Single X-point
-    MODE_ETH_MA = 4,  // Ethereum Multiple Addresses
-    MODE_ETH_SA = 5   // Ethereum Single Address
-};
+// 搜索模式枚举已在GPUCompute.h中定义
 
 // 压缩模式枚举
 enum class CompressionMode : uint32_t {
@@ -45,77 +37,30 @@ enum class CoinType : uint32_t {
 };
 
 // 统一的检查函数模板特化声明
-template<SearchMode Mode>
-__device__ __forceinline__ void unified_check_hash(
-    uint32_t mode, uint64_t* px, uint64_t* py, int32_t incr,
-    const void* target_data, uint32_t param1, uint32_t param2,
-    uint32_t maxFound, uint32_t* out);
 
 // MA模式特化 - 多地址布隆过滤器检查
-template<>
-__device__ __forceinline__ void unified_check_hash<SearchMode::MODE_MA>(
-    uint32_t mode, uint64_t* px, uint64_t* py, int32_t incr,
-    const void* target_data, uint32_t bloom_bits, uint32_t bloom_hashes,
-    uint32_t maxFound, uint32_t* out)
-{
-    const uint8_t* bloomLookUp = static_cast<const uint8_t*>(target_data);
-    CheckHashSEARCH_MODE_MA(mode, px, py, incr, const_cast<uint8_t*>(bloomLookUp), bloom_bits, bloom_hashes, maxFound, out);
-}
+// MA模式特化 - 多地址布隆过滤器检查
+// 已由通用模板处理
 
 // SA模式特化 - 单地址哈希检查
-template<>
-__device__ __forceinline__ void unified_check_hash<SearchMode::MODE_SA>(
-    uint32_t mode, uint64_t* px, uint64_t* py, int32_t incr,
-    const void* target_data, uint32_t param1, uint32_t param2,
-    uint32_t maxFound, uint32_t* out)
-{
-    const uint32_t* hash160 = static_cast<const uint32_t*>(target_data);
-    CheckHashSEARCH_MODE_SA(mode, px, py, incr, const_cast<uint32_t*>(hash160), maxFound, out);
-}
+// SA模式特化 - 单地址哈希检查
+// 已由通用模板处理
 
 // MX模式特化 - 多X坐标检查
-template<>
-__device__ __forceinline__ void unified_check_hash<SearchMode::MODE_MX>(
-    uint32_t mode, uint64_t* px, uint64_t* py, int32_t incr,
-    const void* target_data, uint32_t bloom_bits, uint32_t bloom_hashes,
-    uint32_t maxFound, uint32_t* out)
-{
-    const uint8_t* bloomLookUp = static_cast<const uint8_t*>(target_data);
-    CheckPubSEARCH_MODE_MX(mode, px, py, incr, const_cast<uint8_t*>(bloomLookUp), bloom_bits, bloom_hashes, maxFound, out);
-}
+// MX模式特化 - 多X坐标检查
+// 已由通用模板处理
 
 // SX模式特化 - 单X坐标检查
-template<>
-__device__ __forceinline__ void unified_check_hash<SearchMode::MODE_SX>(
-    uint32_t mode, uint64_t* px, uint64_t* py, int32_t incr,
-    const void* target_data, uint32_t param1, uint32_t param2,
-    uint32_t maxFound, uint32_t* out)
-{
-    const uint32_t* xpoint = static_cast<const uint32_t*>(target_data);
-    CheckPubSEARCH_MODE_SX(mode, px, py, incr, const_cast<uint32_t*>(xpoint), maxFound, out);
-}
+// SX模式特化 - 单X坐标检查
+// 已由通用模板处理
 
 // 以太坊MA模式特化
-template<>
-__device__ __forceinline__ void unified_check_hash<SearchMode::MODE_ETH_MA>(
-    uint32_t mode, uint64_t* px, uint64_t* py, int32_t incr,
-    const void* target_data, uint32_t bloom_bits, uint32_t bloom_hashes,
-    uint32_t maxFound, uint32_t* out)
-{
-    const uint8_t* bloomLookUp = static_cast<const uint8_t*>(target_data);
-    CheckHashSEARCH_ETH_MODE_MA(px, py, incr, const_cast<uint8_t*>(bloomLookUp), bloom_bits, bloom_hashes, maxFound, out);
-}
+// 以太坊MA模式特化
+// 已由通用模板处理
 
 // 以太坊SA模式特化
-template<>
-__device__ __forceinline__ void unified_check_hash<SearchMode::MODE_ETH_SA>(
-    uint32_t mode, uint64_t* px, uint64_t* py, int32_t incr,
-    const void* target_data, uint32_t param1, uint32_t param2,
-    uint32_t maxFound, uint32_t* out)
-{
-    const uint32_t* hash = static_cast<const uint32_t*>(target_data);
-    CheckHashSEARCH_ETH_MODE_SA(px, py, incr, const_cast<uint32_t*>(hash), maxFound, out);
-}
+// 以太坊SA模式特化
+// 已由通用模板处理
 
 // 统一的椭圆曲线计算核心函数
 // 这个函数合并了所有重复的椭圆曲线计算逻辑

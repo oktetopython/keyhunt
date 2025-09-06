@@ -188,9 +188,15 @@ public:
 	//	__declspec(align(16)) uint64_t bits64[NB64BLOCK];
 	//};
 
+	//union {
+	//	__declspec(align(16)) uint32_t bits[NB32BLOCK];
+	//	__declspec(align(16)) uint64_t bits64[NB64BLOCK];
+	//};
+
+	// 使用显式对齐指令修复内存对齐问题
 	union {
-		uint32_t bits[NB32BLOCK];
-		uint64_t bits64[NB64BLOCK];
+		uint32_t bits[NB32BLOCK] __attribute__((aligned(16)));
+		uint64_t bits64[NB64BLOCK] __attribute__((aligned(16)));
 	};
 
 private:
