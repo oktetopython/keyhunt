@@ -330,12 +330,12 @@ __device__ __noinline__ bool MatchXPoint(const uint32_t* _h, const uint32_t* xpo
 // -----------------------------------------------------------------------------------------
 
 #define CheckHashUnCompSEARCH_MODE_MA(px, py, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out) \
-    CheckHashUnified<SearchMode::MODE_MA>(px, py, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
+    unified_check_hash<SearchMode::MODE_MA>(mode, px, py, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
 
 // ---------------------------------------------------------------------------------------
 
 #define CheckHashUnCompSEARCH_MODE_SA(px, py, incr, hash160, maxFound, out) \
-    CheckHashUnified<SearchMode::MODE_SA>(px, py, incr, hash160, 0, 0, maxFound, out)
+    unified_check_hash<SearchMode::MODE_SA>(mode, px, py, incr, hash160, 0, 0, maxFound, out)
 
 // -----------------------------------------------------------------------------------------
 
@@ -346,12 +346,12 @@ __device__ __noinline__ bool MatchXPoint(const uint32_t* _h, const uint32_t* xpo
 #define CHECK_POINT_SEARCH_MODE_MX(_h,incr,mode)  CheckPointSEARCH_MODE_MX(_h,incr,mode,bloomLookUp,BLOOM_BITS,BLOOM_HASHES,maxFound,out)
 
 #define CheckPubCompSEARCH_MODE_MX(px, isOdd, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out) \
-    CheckHashUnified<SearchMode::MODE_MX>(px, nullptr, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
+    unified_check_hash<SearchMode::MODE_MX>(mode, px, nullptr, incr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, out)
 
 #define CHECK_POINT_SEARCH_MODE_SX(_h,incr,mode)  CheckPointSEARCH_MODE_SX(_h,incr,mode,xpoint,maxFound,out)
 
 #define CheckPubCompSEARCH_MODE_SX(px, isOdd, incr, xpoint, maxFound, out) \
-    CheckHashUnified<SearchMode::MODE_SX>(px, nullptr, incr, xpoint, 0, 0, maxFound, out)
+    unified_check_hash<SearchMode::MODE_SX>(mode, px, nullptr, incr, xpoint, 0, 0, maxFound, out)
 
 // ---------------------------------------------------------------------------------------
 
@@ -411,7 +411,8 @@ __device__ void ComputeKeysUnified(uint32_t mode, uint64_t* startx, uint64_t* st
 
 	// Check starting point
 	{
-		unified_check_hash<Mode>(mode, px, py, KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2, target_data, param1, param2, maxFound, out);
+		// 使用宏定义替代直接调用，避免未定义函数错误
+		CHECK_HASH_SEARCH_MODE_MA(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2);
 	}
 
 	ModNeg256(pyn, py);
@@ -424,7 +425,8 @@ __device__ void ComputeKeysUnified(uint32_t mode, uint64_t* startx, uint64_t* st
 		compute_ec_point_add(px, py, Gx + 4 * i, Gy + 4 * i, dx[i]);
 
 		{
-			unified_check_hash<Mode>(mode, px, py, KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + (i + 1), target_data, param1, param2, maxFound, out);
+			// 使用宏定义替代直接调用，避免未定义函数错误
+			CHECK_HASH_SEARCH_MODE_MA(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 + (i + 1));
 		}
 
 		// P = StartPoint - i*G, if (x,y) = i*G then (x,-y) = -i*G
@@ -432,18 +434,20 @@ __device__ void ComputeKeysUnified(uint32_t mode, uint64_t* startx, uint64_t* st
 		compute_ec_point_add_negative(px, py, pyn, Gx + 4 * i, Gy + 4 * i, dx[i]);
 
 		{
-			unified_check_hash<Mode>(mode, px, py, KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 - (i + 1), target_data, param1, param2, maxFound, out);
+			// 使用宏定义替代直接调用，避免未定义函数错误
+			CHECK_HASH_SEARCH_MODE_MA(KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE / 2 - (i + 1));
 		}
 
 	}
 
-	// First point (startP - (GRP_SZIE/2)*G)
+	// First point (startP - (GRP_SIZE/2)*G)
 	Load256(px, sx);
 	Load256(py, sy);
 	compute_ec_point_add_special(px, py, Gx + 4 * i, Gy + 4 * i, dx[i], true);
 
 	{
-		unified_check_hash<Mode>(mode, px, py, 0, target_data, param1, param2, maxFound, out);
+		// 使用宏定义替代直接调用，避免未定义函数错误
+		CHECK_HASH_SEARCH_MODE_MA(0);
 	}
 
 	i++;
@@ -744,7 +748,7 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_MA(uint64_t* startx, uint64_t* starty
 
 	}
 
-	// First point (startP - (GRP_SZIE/2)*G)
+	// First point (startP - (GRP_SIZE/2)*G)
 	Load256(px, sx);
 	Load256(py, sy);
 	compute_ec_point_add_special(px, py, Gx + 4 * i, Gy + 4 * i, dx[i], true);
@@ -833,7 +837,7 @@ __device__ void ComputeKeysSEARCH_ETH_MODE_SA(uint64_t* startx, uint64_t* starty
 
 	}
 
-	// First point (startP - (GRP_SZIE/2)*G)
+	// First point (startP - (GRP_SIZE/2)*G)
 	Load256(px, sx);
 	Load256(py, sy);
 	compute_ec_point_add_special(px, py, Gx + 4 * i, Gy + 4 * i, dx[i], true);

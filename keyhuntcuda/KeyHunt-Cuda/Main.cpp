@@ -15,7 +15,7 @@
 #include <unistd.h>
 #endif
 
-#define RELEASE "1.07"
+#define RELEASE KEYHUNT_VERSION_STRING
 
 using namespace std;
 bool should_exit = false;
@@ -343,7 +343,8 @@ public:
 					rKey = std::stoull(optArg.arg);
 				}
 				else if (optArg.equals("-v", "--version")) {
-					printf("KeyHunt-Cuda v%s\n", RELEASE);
+					printf("KeyHunt-Cuda %s (%s)\n", KEYHUNT_VERSION, KEYHUNT_BUILD_DATE);
+					printf("Build with unified kernel interface and LDG cache optimization\n");
 					return 0;
 				}
 			}
@@ -520,7 +521,8 @@ public:
 	// 打印配置信息
 	void printConfig() {
 		printf("\n");
-		printf("KeyHunt-Cuda v%s\n", RELEASE);
+		printf("KeyHunt-Cuda %s (%s)\n", KEYHUNT_VERSION, KEYHUNT_BUILD_DATE);
+		printf("Unified kernel interface with LDG cache optimization\n");
 		printf("\n");
 		if (coinType == COIN_BTC)
 			printf("COMP MODE    : %s\n", compMode == SEARCH_COMPRESSED ? "COMPRESSED" : (compMode == SEARCH_UNCOMPRESSED ? "UNCOMPRESSED" : "COMPRESSED & UNCOMPRESSED"));

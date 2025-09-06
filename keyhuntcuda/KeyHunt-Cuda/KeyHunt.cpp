@@ -14,6 +14,7 @@
 #include <inttypes.h>
 #include <memory>
 #include <vector>
+#include "MemoryPool.h"
 #ifndef WIN64
 #include <pthread.h>
 #endif
@@ -591,17 +592,30 @@ void KeyHunt::FindKeyCPU(TH_PARAM * ph)
 	Int tRangeEnd = ph->rangeEnd;
 	counters[thId] = 0;
 
-	// CPU Thread - Use smart pointers for automatic memory management
-	std::unique_ptr<IntGroup> grp(new IntGroup(CPU_GRP_SIZE / 2 + 1));
+	// CPU Thread - 使用预分配策略减少内存分配开销
+	// 预分配所有需要的内存，避免在循环中频繁分配
+	static thread_local std::vector<Int> dx_vec;
+	static thread_local std::vector<Point> pts_vec;
+	static thread_local IntGroup* grp = nullptr;
+	
+	// 首次使用时初始化
+	if (dx_vec.empty()) {
+		dx_vec.resize(CPU_GRP_SIZE / 2 + 1);
+		pts_vec.resize(CPU_GRP_SIZE);
+		if (!grp) {
+			grp = new IntGroup(CPU_GRP_SIZE / 2 + 1);
+		}
+	}
+	
+	// 重置数据
+	std::fill(dx_vec.begin(), dx_vec.end(), Int());
+	std::fill(pts_vec.begin(), pts_vec.end(), Point());
 
 	// Group Init
 	Int key;
 	Point startP;
 	getCPUStartingKey(tRangeStart, tRangeEnd, key, startP);
 
-	// Use vectors for automatic memory management
-	std::vector<Int> dx_vec(CPU_GRP_SIZE / 2 + 1);
-	std::vector<Point> pts_vec(CPU_GRP_SIZE);
 	Int dy, dyn, _s, _p;
 	Point pp, pn;
 
@@ -680,7 +694,7 @@ void KeyHunt::FindKeyCPU(TH_PARAM * ph)
 
 		}
 
-		// First point (startP - (GRP_SZIE/2)*G)
+		// First point (startP - (GRP_SIZE/2)*G)
 		pn = startP;
 		dyn.Set(&Gn[i].y);
 		dyn.ModNeg();
@@ -907,16 +921,17 @@ void KeyHunt::FindKeyGPU(TH_PARAM * ph)
 
 
 	int nbThread = g->GetNbThread();
-	Point* p = new Point[nbThread];
-	Int* keys = new Int[nbThread];
+	// 使用智能指针管理GPU内存，防止内存泄漏
+	auto p = std::make_unique<Point[]>(nbThread);
+	auto keys = std::make_unique<Int[]>(nbThread);
 	std::vector<ITEM> found;
 
 	printf("GPU          : %s\n\n", g->deviceName.c_str());
 
 	counters[thId] = 0;
 
-	getGPUStartingKeys(tRangeStart, tRangeEnd, g->GetGroupSize(), nbThread, keys, p);
-	ok = g->SetKeys(p);
+	getGPUStartingKeys(tRangeStart, tRangeEnd, g->GetGroupSize(), nbThread, keys.get(), p.get());
+	ok = g->SetKeys(p.get());
 
 	ph->hasStarted = true;
 	ph->rKeyRequest = false;
@@ -925,8 +940,8 @@ void KeyHunt::FindKeyGPU(TH_PARAM * ph)
 	while (ok && !endOfSearch) {
 
 		if (ph->rKeyRequest) {
-			getGPUStartingKeys(tRangeStart, tRangeEnd, g->GetGroupSize(), nbThread, keys, p);
-			ok = g->SetKeys(p);
+			getGPUStartingKeys(tRangeStart, tRangeEnd, g->GetGroupSize(), nbThread, keys.get(), p.get());
+			ok = g->SetKeys(p.get());
 			ph->rKeyRequest = false;
 		}
 
@@ -1005,8 +1020,9 @@ void KeyHunt::FindKeyGPU(TH_PARAM * ph)
 
 	}
 
-	delete[] keys;
-	delete[] p;
+	// 智能指针会自动释放内存，无需手动delete
+	// delete[] keys;  // 已由unique_ptr管理
+	// delete[] p;     // 已由unique_ptr管理
 	delete g;
 
 #else
@@ -1083,11 +1099,36 @@ void KeyHunt::rKeyRequest(TH_PARAM * p) {
 
 void KeyHunt::SetupRanges(uint32_t totalThreads)
 {
+	// 添加溢出检查
+	if (totalThreads == 0) {
+		printf("Error: totalThreads cannot be zero\n");
+		return;
+	}
+	
 	Int threads;
 	threads.SetInt32(totalThreads);
+	
+	// 检查范围是否有效
+	if (rangeStart.IsGreaterOrEqual(&rangeEnd)) {
+		printf("Error: Invalid range - start must be less than end\n");
+		return;
+	}
+	
 	rangeDiff.Set(&rangeEnd);
 	rangeDiff.Sub(&rangeStart);
+	
+	// 检查减法是否下溢
+	if (rangeDiff.IsNegative()) {
+		printf("Error: Range calculation underflow\n");
+		return;
+	}
+	
 	rangeDiff.Div(&threads);
+	
+	// 检查除法结果是否合理
+	if (rangeDiff.IsZero() && !rangeStart.IsEqual(&rangeEnd)) {
+		printf("Warning: Range per thread is zero, consider reducing thread count\n");
+	}
 }
 
 // ----------------------------------------------------------------------------

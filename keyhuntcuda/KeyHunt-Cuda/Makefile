@@ -66,7 +66,7 @@ else
 CXXFLAGS   =  -DWITHGPU -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include
 endif
 LFLAGS     = -lgmp -lpthread -L$(CUDA)/lib64 -lcudart
-NVCCFLAGS  = -DKEYHUNT_PROFILE_EVENTS -DKEYHUNT_CACHE_OPTIMIZED
+NVCCFLAGS  = -DKEYHUNT_PROFILE_EVENTS -DKEYHUNT_CACHE_LDG_OPTIMIZED
 else
 ifdef debug
 CXXFLAGS   = -m64 -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include

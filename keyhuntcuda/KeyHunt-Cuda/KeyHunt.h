@@ -1,6 +1,16 @@
 #ifndef KEYHUNTH
 #define KEYHUNTH
 
+// KeyHunt-Cuda Version Information
+#define KEYHUNT_VERSION_MAJOR 1
+#define KEYHUNT_VERSION_MINOR 7
+#define KEYHUNT_VERSION_PATCH 1
+#define KEYHUNT_VERSION_STRING "v1.7.1"
+
+// Version with build date
+#define KEYHUNT_VERSION KEYHUNT_VERSION_STRING " (2025-09-06)"
+#define KEYHUNT_BUILD_DATE "2025-09-06"
+
 #include <string>
 #include <vector>
 #include <memory>

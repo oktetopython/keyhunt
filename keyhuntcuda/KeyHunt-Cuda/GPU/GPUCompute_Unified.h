@@ -16,11 +16,11 @@
 
 #include "GPUMath.h"
 #include "GPUHash.h"
-#include "GPUCompute.h"
+#include "../Constants.h"
 #include "GPUMemoryOptimized.h"  // 内存访问优化
 #include "GPUProfiler.h"  // 设备侧性能分析
 #include "GPUCacheOptimizer.h"  // L1缓存优化
-#include "../Constants.h"
+// GPUCompute.h 应该在后面包含，因为它依赖于本文件中的定义
 
 // 搜索模式枚举已在GPUCompute.h中定义
 
