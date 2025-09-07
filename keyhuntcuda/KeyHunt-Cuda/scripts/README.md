@@ -24,6 +24,26 @@
 ./scripts/build.sh --cpu-only
 ```
 
+#### `build_fixed.sh` - 修复版 Bash 构建脚本
+解决了路径问题的构建脚本，确保在正确的目录中执行。
+
+**使用方法:**
+```bash
+# 构建默认 GPU 版本
+./scripts/build_fixed.sh
+
+# 其他选项与 build.sh 相同
+```
+
+#### `build_h20.sh` - NVIDIA H20 专用构建脚本
+针对 NVIDIA H20 (CC 9.0) 优化的构建脚本。
+
+**使用方法:**
+```bash
+# 构建 NVIDIA H20 优化版本
+./scripts/build_h20.sh
+```
+
 #### `build.bat` - Windows 批处理脚本
 适用于 Windows CMD 环境的构建脚本。
 
@@ -113,7 +133,7 @@ python3 scripts/build.py --cpu-only
 - **单 GPU 构建**: 针对特定 GPU 架构优化，性能最佳
   - `make gpu=1 CCAP=75 all` (GTX 16xx/RTX 20xx)
   - `make gpu=1 CCAP=86 all` (RTX 30xx)
-  - `make gpu=1 CCAP=90 all` (RTX 40xx)
+  - `make gpu=1 CCAP=90 all` (RTX 40xx/H20)
 
 - **多 GPU 构建**: 支持多种 GPU 架构，兼容性更好
   - `make gpu=1 MULTI_GPU=1 all`
@@ -166,9 +186,24 @@ export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 2. 重新构建：`make gpu=1 CCAP=75 all`
 3. 如果问题仍然存在，请检查 CUDA 和 GCC 版本兼容性
 
+### 4. `make: *** No rule to make target 'all'. Stop.`
+这通常是因为脚本在错误的目录中执行。请确保：
+1. 在包含 Makefile 的目录中执行脚本
+2. 使用 `build_fixed.sh` 脚本，它会自动切换到正确的目录
+
 ## 性能优化建议
 
 1. **选择正确的计算能力**: 使用 `detect_gpu.sh` 脚本检测您的 GPU 并选择相应的 CCAP 值
 2. **单 GPU 构建**: 对于特定硬件，单 GPU 构建通常比多 GPU 构建性能更好
 3. **启用优化标志**: 发布版本默认启用优化标志
 4. **调整网格大小**: 运行时使用 `--gpugridsize` 参数调整网格大小以获得最佳性能
+
+## 特定 GPU 优化
+
+### NVIDIA H20
+- **计算能力**: 9.0 (Hopper 架构)
+- **推荐构建命令**: `./scripts/build_h20.sh`
+- **内存**: 96GB HBM3
+- **优化建议**: 
+  - 使用较大的网格大小以充分利用并行计算能力
+  - 利用高带宽内存处理大数据集
