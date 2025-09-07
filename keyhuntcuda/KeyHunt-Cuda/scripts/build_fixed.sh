@@ -41,9 +41,30 @@ echo -e "${GREEN}找到 Makefile${NC}"
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
     echo -e "${YELLOW}检测到 Windows 环境${NC}"
     IS_WINDOWS=1
+    # Windows环境下设置CUDA_PATH环境变量
+    if [ -z "$CUDA_PATH" ]; then
+        # 尝试常见的CUDA安装路径
+        for cuda_path in "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4" "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6" "/c/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.0"; do
+            if [ -d "$cuda_path" ] && [ -f "$cuda_path/bin/nvcc.exe" ]; then
+                export CUDA_PATH="$cuda_path"
+                echo -e "  ${GREEN}设置 CUDA_PATH 为: $CUDA_PATH${NC}"
+                break
+            fi
+        done
+    fi
 else
     echo -e "${GREEN}检测到 Linux/WSL 环境${NC}"
     IS_WINDOWS=0
+    # Linux环境下设置CUDA_HOME环境变量
+    if [ -z "$CUDA_HOME" ]; then
+        # 检查系统路径中的nvcc
+        CUDA_BIN=$(which nvcc 2>/dev/null)
+        if [ -n "$CUDA_BIN" ]; then
+            # 从nvcc路径推断CUDA安装目录
+            export CUDA_HOME=$(dirname $(dirname $CUDA_BIN))
+            echo -e "  ${GREEN}设置 CUDA_HOME 为: $CUDA_HOME${NC}"
+        fi
+    fi
 fi
 
 # 默认参数
@@ -160,6 +181,9 @@ if [ $? -eq 0 ]; then
     if [ -f "./KeyHunt" ]; then
         echo -e "${BLUE}构建文件信息:${NC}"
         ls -lh ./KeyHunt
+    elif [ -f "./KeyHunt.exe" ]; then
+        echo -e "${BLUE}构建文件信息:${NC}"
+        ls -lh ./KeyHunt.exe
     fi
 else
     echo -e "${RED}========================================${NC}"

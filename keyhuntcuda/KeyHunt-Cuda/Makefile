@@ -31,10 +31,43 @@ OBJET = $(addprefix $(OBJDIR)/, \
 
 endif
 
-CXX        = g++
-CUDA       = /usr/local/cuda-12.6
-CXXCUDA    = /usr/bin/g++
+# CUDA路径检测和设置
+# 检测系统中的CUDA安装路径
+ifeq ($(OS),Windows_NT)
+    # Windows系统
+    ifeq ($(CUDA_PATH),)
+        # 如果未设置CUDA_PATH环境变量，使用默认路径
+        CUDA       = C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4
+    else
+        CUDA       = $(CUDA_PATH)
+    endif
+    CXXCUDA    = g++
+else
+    # Linux/Unix系统
+    # 检查CUDA_HOME环境变量
+    ifdef CUDA_HOME
+        CUDA       = $(CUDA_HOME)
+    else
+        # 检查系统路径中的nvcc
+        CUDA_BIN := $(shell which nvcc 2>/dev/null)
+        ifneq ($(CUDA_BIN),)
+            # 从nvcc路径推断CUDA安装目录
+            CUDA       = $(shell dirname $(shell dirname $(CUDA_BIN)))
+        else
+            # 默认路径
+            CUDA       = /usr/local/cuda
+        endif
+    endif
+    CXXCUDA    = /usr/bin/g++
+endif
+
+# 如果上述方法都无法确定CUDA路径，使用默认值
+ifeq ($(CUDA),)
+    CUDA       = /usr/local/cuda
+endif
+
 NVCC       = $(CUDA)/bin/nvcc
+
 # GPU Architecture Support
 # Default to compute capability 75 if not specified
 CCAP ?= 75
@@ -44,7 +77,7 @@ CCAP ?= 75
 # Compute Capability 8.0: RTX 30xx series (A100, RTX 3080, etc.)
 # Compute Capability 8.6: RTX 30xx series (RTX 3050, 3060, 3070, 3080 Ti, 3090)
 # Compute Capability 8.9: RTX 40xx series (RTX 4060, 4070)
-# Compute Capability 9.0: RTX 40xx series (RTX 4080, 4090, H100)
+# Compute Capability 9.0: RTX 40xx series (RTX 4080, 4090, H100, H20)
 
 ifdef MULTI_GPU
 # Multi-GPU support: compile for multiple architectures
@@ -114,4 +147,3 @@ clean:
 	@rm -f obj/*.o
 	@rm -f obj/GPU/*.o
 	@rm -f obj/hash/*.o
-
