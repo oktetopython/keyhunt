@@ -2,7 +2,7 @@
 
 A high-performance CUDA-accelerated Bitcoin private key search tool optimized for modern NVIDIA GPUs.
 
-## 🆕 Latest Updates (v1.07.1 - 2025-09-06)
+## 🆕 Latest Updates (v1.0.8 - 2025-09-08)
 
 ### ✅ Critical Fixes Applied
 - **Performance Regression Fixed**: Resolved 31% performance drop from cache optimization
@@ -407,7 +407,7 @@ cat LINUX_COMPATIBILITY_TEST.md
 
 ---
 
-**🎉 Happy hunting with KeyHunt-Cuda v1.07.1!**
+**🎉 Happy hunting with KeyHunt-Cuda v1.0.8!**
 
 *Status: PRODUCTION READY | Health: A+ | Compatibility: ⭐⭐⭐⭐⭐*
 

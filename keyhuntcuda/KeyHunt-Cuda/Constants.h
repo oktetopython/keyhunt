@@ -5,7 +5,7 @@
 
 namespace KeyHuntConstants {
     // 版本信息
-    constexpr const char* VERSION = "1.07";
+    constexpr const char* VERSION = "1.0.8";
     
     // 默认配置值
     constexpr uint32_t DEFAULT_MAX_FOUND = 65536;  // 1024 * 64
