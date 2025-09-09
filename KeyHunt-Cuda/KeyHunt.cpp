@@ -478,28 +478,23 @@ void KeyHunt::checkMultiAddressesSSE(bool compressed, Int key, int i, Point p1, 
 
 	// Point -------------------------------------------------------------------------
 	secp->GetHash160(compressed, p1, p2, p3, p4, h0, h1, h2, h3);
-	if (CheckBloomBinary(h0, 20) > 0) {
-		std::string addr = secp->GetAddress(compressed, h0);
-		if (checkPrivKey(addr, key, i + 0, compressed)) {
-			nbFoundKey++;
-		}
-	}
-	if (CheckBloomBinary(h1, 20) > 0) {
-		std::string addr = secp->GetAddress(compressed, h1);
-		if (checkPrivKey(addr, key, i + 1, compressed)) {
-			nbFoundKey++;
-		}
-	}
-	if (CheckBloomBinary(h2, 20) > 0) {
-		std::string addr = secp->GetAddress(compressed, h2);
-		if (checkPrivKey(addr, key, i + 2, compressed)) {
-			nbFoundKey++;
-		}
-	}
-	if (CheckBloomBinary(h3, 20) > 0) {
-		std::string addr = secp->GetAddress(compressed, h3);
-		if (checkPrivKey(addr, key, i + 3, compressed)) {
-			nbFoundKey++;
+	
+	// Loop unrolling and cache optimization
+	int bloomResults[4] = {
+		CheckBloomBinary(h0, 20),
+		CheckBloomBinary(h1, 20),
+		CheckBloomBinary(h2, 20),
+		CheckBloomBinary(h3, 20)
+	};
+	
+	// Process all 4 points with reduced branching
+	for (int j = 0; j < 4; j++) {
+		if (bloomResults[j] > 0) {
+			unsigned char* currentHash = (j == 0) ? h0 : (j == 1) ? h1 : (j == 2) ? h2 : h3;
+			std::string addr = secp->GetAddress(compressed, currentHash);
+			if (checkPrivKey(addr, key, i + j, compressed)) {
+				nbFoundKey++;
+			}
 		}
 	}
 
@@ -516,28 +511,18 @@ void KeyHunt::checkSingleAddressesSSE(bool compressed, Int key, int i, Point p1,
 
 	// Point -------------------------------------------------------------------------
 	secp->GetHash160(compressed, p1, p2, p3, p4, h0, h1, h2, h3);
-	if (MatchHash((uint32_t*)h0)) {
-		std::string addr = secp->GetAddress(compressed, h0);
-		if (checkPrivKey(addr, key, i + 0, compressed)) {
-			nbFoundKey++;
-		}
-	}
-	if (MatchHash((uint32_t*)h1)) {
-		std::string addr = secp->GetAddress(compressed, h1);
-		if (checkPrivKey(addr, key, i + 1, compressed)) {
-			nbFoundKey++;
-		}
-	}
-	if (MatchHash((uint32_t*)h2)) {
-		std::string addr = secp->GetAddress(compressed, h2);
-		if (checkPrivKey(addr, key, i + 2, compressed)) {
-			nbFoundKey++;
-		}
-	}
-	if (MatchHash((uint32_t*)h3)) {
-		std::string addr = secp->GetAddress(compressed, h3);
-		if (checkPrivKey(addr, key, i + 3, compressed)) {
-			nbFoundKey++;
+	
+	// Loop unrolling and cache optimization
+	uint32_t* hashPtrs[4] = {(uint32_t*)h0, (uint32_t*)h1, (uint32_t*)h2, (uint32_t*)h3};
+	unsigned char* hashBytes[4] = {h0, h1, h2, h3};
+	
+	// Process all 4 points with reduced branching
+	for (int j = 0; j < 4; j++) {
+		if (MatchHash(hashPtrs[j])) {
+			std::string addr = secp->GetAddress(compressed, hashBytes[j]);
+			if (checkPrivKey(addr, key, i + j, compressed)) {
+				nbFoundKey++;
+			}
 		}
 	}
 
