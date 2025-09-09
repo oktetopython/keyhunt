@@ -381,7 +381,7 @@ void KeyHunt::checkMultiAddresses(bool compressed, Int key, int i, Point p1)
 
 	// Point
 	secp->GetHash160(compressed, p1, h0);
-	if (CheckBloomBinary(h0, 20) > 0) {
+	if (CheckBloomBinary(span<const uint8_t>(h0, 20)) > 0) {
 		std::string addr = secp->GetAddress(compressed, h0);
 		if (checkPrivKey(addr, key, i, compressed)) {
 			nbFoundKey++;
@@ -397,7 +397,7 @@ void KeyHunt::checkMultiAddressesETH(Int key, int i, Point p1)
 
 	// Point
 	secp->GetHashETH(p1, h0);
-	if (CheckBloomBinary(h0, 20) > 0) {
+	if (CheckBloomBinary(span<const uint8_t>(h0, 20)) > 0) {
 		std::string addr = secp->GetAddressETH(h0);
 		if (checkPrivKeyETH(addr, key, i)) {
 			nbFoundKey++;
@@ -445,7 +445,7 @@ void KeyHunt::checkMultiXPoints(bool compressed, Int key, int i, Point p1)
 
 	// Point
 	secp->GetXBytes(compressed, p1, h0);
-	if (CheckBloomBinary(h0, 32) > 0) {
+	if (CheckBloomBinary(span<const uint8_t>(h0, 32)) > 0) {
 		if (checkPrivKeyX(key, i, compressed)) {
 			nbFoundKey++;
 		}
@@ -481,10 +481,10 @@ void KeyHunt::checkMultiAddressesSSE(bool compressed, Int key, int i, Point p1, 
 	
 	// Loop unrolling and cache optimization
 	int bloomResults[4] = {
-		CheckBloomBinary(h0, 20),
-		CheckBloomBinary(h1, 20),
-		CheckBloomBinary(h2, 20),
-		CheckBloomBinary(h3, 20)
+		CheckBloomBinary(span<const uint8_t>(h0, 20)),
+				CheckBloomBinary(span<const uint8_t>(h1, 20)),
+				CheckBloomBinary(span<const uint8_t>(h2, 20)),
+				CheckBloomBinary(span<const uint8_t>(h3, 20))
 	};
 	
 	// Process all 4 points with reduced branching
@@ -1253,9 +1253,9 @@ std::string KeyHunt::GetHex(std::vector<unsigned char> &buffer)
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
-int KeyHunt::CheckBloomBinary(const uint8_t * _xx, uint32_t K_LENGTH)
+int KeyHunt::CheckBloomBinary(span<const uint8_t> data)
 {
-	if (bloom->check(_xx, K_LENGTH) > 0) {
+	if (bloom->check(data.data(), data.size()) > 0) {
 		uint8_t* temp_read;
 		uint64_t half, min, max, current; //, current_offset
 		int64_t rcmp;
@@ -1266,8 +1266,8 @@ int KeyHunt::CheckBloomBinary(const uint8_t * _xx, uint32_t K_LENGTH)
 		half = TOTAL_COUNT;
 		while (!r && half >= 1) {
 			half = (max - min) / 2;
-			temp_read = DATA + ((current + half) * K_LENGTH);
-			rcmp = memcmp(_xx, temp_read, K_LENGTH);
+			temp_read = DATA + ((current + half) * data.size());
+			rcmp = memcmp(data.data(), temp_read, data.size());
 			if (rcmp == 0) {
 				r = 1;  //Found!!
 			}

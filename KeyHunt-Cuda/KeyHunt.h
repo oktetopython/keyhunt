@@ -6,6 +6,7 @@
 #include "SECP256k1.h"
 #include "Bloom.h"
 #include "GPU/GPUEngine.h"
+#include "span.h"
 #ifdef WIN64
 #include <Windows.h>
 #endif
@@ -80,7 +81,7 @@ private:
 	void getCPUStartingKey(Int& tRangeStart, Int& tRangeEnd, Int& key, Point& startP);
 	void getGPUStartingKeys(Int& tRangeStart, Int& tRangeEnd, int groupSize, int nbThread, Int* keys, Point* p);
 
-	int CheckBloomBinary(const uint8_t* _xx, uint32_t K_LENGTH);
+	int CheckBloomBinary(span<const uint8_t> data);
 	bool MatchHash(uint32_t* _h);
 	bool MatchXPoint(uint32_t* _h);
 	std::string formatThousands(uint64_t x);
