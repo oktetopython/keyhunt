@@ -79,11 +79,11 @@ endif
 $(OBJDIR)/%.o : %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
-all: keyhunt
+all: KeyHunt
 
-keyhunt: $(OBJET)
-	@echo Making keyhunt...
-	$(CXX) $(OBJET) $(LFLAGS) -o keyhunt
+KeyHunt: $(OBJET)
+	@echo Making KeyHunt...
+	$(CXX) $(OBJET) $(LFLAGS) -o KeyHunt
 
 $(OBJET): | $(OBJDIR) $(OBJDIR)/GPU $(OBJDIR)/hash
 
