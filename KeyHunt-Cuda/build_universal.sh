@@ -3,26 +3,29 @@
 # Universal build script for KeyHunt-Cuda supporting NVIDIA GPUs from 20 series to H100
 # Supports multiple CUDA architectures for cross-GPU compatibility
 
-# Default CUDA path
-CUDA_PATH="/usr/local/cuda"
-
-# Detect available CUDA version
-if [ -d "/usr/local/cuda-12.6" ] && [ -f "/usr/local/cuda-12.6/bin/nvcc" ]; then
-    CUDA_PATH="/usr/local/cuda-12.6"
-elif [ -d "/usr/local/cuda-12.0" ] && [ -f "/usr/local/cuda-12.0/bin/nvcc" ]; then
-    CUDA_PATH="/usr/local/cuda-12.0"
-elif [ -d "/usr/local/cuda-11.8" ] && [ -f "/usr/local/cuda-11.8/bin/nvcc" ]; then
-    CUDA_PATH="/usr/local/cuda-11.8"
-elif [ -d "/usr/local/cuda-11.6" ] && [ -f "/usr/local/cuda-11.6/bin/nvcc" ]; then
-    CUDA_PATH="/usr/local/cuda-11.6"
-elif [ -d "/usr/local/cuda" ] && [ -f "/usr/local/cuda/bin/nvcc" ]; then
-    CUDA_PATH="/usr/local/cuda"
+# Detect CUDA path (portable)
+if [ -n "${CUDA:-}" ] && [ -x "${CUDA}/bin/nvcc" ]; then
+    CUDA_PATH="${CUDA}"
+elif [ -n "${CUDA_PATH:-}" ] && [ -x "${CUDA_PATH}/bin/nvcc" ]; then
+    CUDA_PATH="${CUDA_PATH}"
 else
-    # Try to find CUDA using which
-    NVCC_PATH=$(which nvcc 2>/dev/null)
+    NVCC_PATH=$(command -v nvcc 2>/dev/null || true)
     if [ -n "$NVCC_PATH" ]; then
         CUDA_PATH=$(dirname "$(dirname "$NVCC_PATH")")
+    else
+        for c in /usr/local/cuda /usr/local/cuda-12.* /usr/local/cuda-11.*; do
+            if [ -d "$c" ] && [ -x "$c/bin/nvcc" ]; then CUDA_PATH="$c"; break; fi
+        done
     fi
+fi
+
+if [ -z "${CUDA_PATH:-}" ]; then
+    echo "ERROR: CUDA not found. Please export CUDA_PATH or install CUDA." >&2
+    exit 1
+fi
+
+if [ ! -d "$CUDA_PATH/lib64" ]; then
+    echo "WARNING: $CUDA_PATH/lib64 not found; cudart link may fail" >&2
 fi
 
 echo "Using CUDA path: $CUDA_PATH"
@@ -66,11 +69,31 @@ build_for_arch() {
             echo "Warning: KeyHunt binary not found, but compilation succeeded"
             # Try to manually link if make failed to create binary
             echo "Attempting manual linking..."
-            g++ obj/*.o obj/GPU/*.o obj/hash/*.o -lpthread -L$CUDA_PATH/lib64 -lcudart -o KeyHunt
-            if [ $? -eq 0 ] && [ -f "KeyHunt" ]; then
-                echo "Manual linking successful!"
+            # Check if object files exist before linking
+            if [ -f obj/*.o ] && [ -f obj/GPU/*.o ] && [ -f obj/hash/*.o ]; then
+                g++ obj/*.o obj/GPU/*.o obj/hash/*.o -lpthread -L$CUDA_PATH/lib64 -lcudart -lgmp -o KeyHunt
+                if [ $? -eq 0 ] && [ -f "KeyHunt" ]; then
+                    echo "Manual linking successful!"
+                else
+                    echo "Manual linking failed"
+                    # Try alternative approach using find command
+                    echo "Trying alternative linking method..."
+                    OBJ_FILES=$(find obj -name "*.o" -type f 2>/dev/null)
+                    if [ -n "$OBJ_FILES" ]; then
+                        g++ $OBJ_FILES -lpthread -L$CUDA_PATH/lib64 -lcudart -lgmp -o KeyHunt
+                        if [ $? -eq 0 ] && [ -f "KeyHunt" ]; then
+                            echo "Alternative linking successful!"
+                        else
+                            echo "Alternative linking also failed"
+                        fi
+                    else
+                        echo "No object files found for linking"
+                    fi
+                fi
             else
-                echo "Manual linking failed"
+                echo "Object files not found for manual linking"
+                echo "Available object files:"
+                find obj -name "*.o" -type f 2>/dev/null | head -20
             fi
         fi
     else
