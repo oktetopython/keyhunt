@@ -804,19 +804,16 @@ bool GPUEngine::LaunchSEARCH_MODE_MX(std::vector<ITEM>& dataFound, bool spinWait
 	for (uint32_t i = 0; i < nbFound; i++) {
 
 		uint32_t* itemPtr = outputBufferPinned + (i * ITEM_SIZE_X32 + 1);
-		uint8_t* pubkey = (uint8_t*)(itemPtr + 2);
+		// uint8_t* pubkey = (uint8_t*)(itemPtr + 2); // 移除未使用的变量
 
-		if (CheckBinary(pubkey, 32) > 0) {
-
-			ITEM it;
-			it.thId = itemPtr[0];
-			int16_t* ptr = (int16_t*)&(itemPtr[1]);
-			//it.endo = ptr[0] & 0x7FFF;
-			it.mode = (ptr[0] & 0x8000) != 0;
-			it.incr = ptr[1];
-			it.hash = (uint8_t*)(itemPtr + 2);
-			dataFound.push_back(it);
-		}
+		ITEM it;
+		it.thId = itemPtr[0];
+		int16_t* ptr = (int16_t*)&(itemPtr[1]);
+		//it.endo = ptr[0] & 0x7FFF;
+		it.mode = (ptr[0] & 0x8000) != 0;
+		it.incr = ptr[1];
+		it.hash = (uint8_t*)(itemPtr + 2);
+		dataFound.push_back(it);
 	}
 	return callKernelSEARCH_MODE_MX();
 }

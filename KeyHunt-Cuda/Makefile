@@ -32,11 +32,20 @@ OBJET = $(addprefix $(OBJDIR)/, \
 endif
 
 CXX        = g++
-CUDA       = /usr/local/cuda-12.0
+CUDA       ?= /usr/local/cuda-12.6
 CXXCUDA    = /usr/bin/g++
 NVCC       = $(CUDA)/bin/nvcc
 # nvcc requires joint notation w/o dot, i.e. "5.2" -> "52"
 ccap       = $(shell echo $(CCAP) | tr -d '.')
+
+# Generate gencode arguments for multiple architectures
+ifdef CCAP_MULTI
+# Multiple architectures specified as comma-separated list
+GENCODE_ARGS = $(shell echo $(CCAP_MULTI) | tr ',' '\n' | while read arch; do echo "-gencode=arch=compute_$$arch,code=sm_$$arch"; done)
+else
+# Single architecture
+GENCODE_ARGS = -gencode=arch=compute_$(ccap),code=sm_$(ccap)
+endif
 
 ifdef gpu
 ifdef debug
@@ -60,21 +69,21 @@ endif
 ifdef gpu
 ifdef debug
 $(OBJDIR)/GPU/GPUEngine.o: GPU/GPUEngine.cu
-	$(NVCC) -G -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -g -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
+	$(NVCC) -G -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -g -I$(CUDA)/include $(GENCODE_ARGS) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
 else
 $(OBJDIR)/GPU/GPUEngine.o: GPU/GPUEngine.cu
-	$(NVCC) -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -O2 -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
+	$(NVCC) -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -O2 -I$(CUDA)/include $(GENCODE_ARGS) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
 endif
 endif
 
 $(OBJDIR)/%.o : %.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
-all: KeyHunt
+all: keyhunt
 
-KeyHunt: $(OBJET)
-	@echo Making KeyHunt...
-	$(CXX) $(OBJET) $(LFLAGS) -o KeyHunt
+keyhunt: $(OBJET)
+	@echo Making keyhunt...
+	$(CXX) $(OBJET) $(LFLAGS) -o keyhunt
 
 $(OBJET): | $(OBJDIR) $(OBJDIR)/GPU $(OBJDIR)/hash
 

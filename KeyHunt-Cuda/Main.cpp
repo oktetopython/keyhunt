@@ -2,6 +2,8 @@
 #include "KeyHunt.h"
 #include "Base58.h"
 #include "CmdParse.h"
+#include "Int.h"
+#include "SECP256k1.h"
 #include <fstream>
 #include <string>
 #include <string.h>
@@ -13,7 +15,7 @@
 #include <unistd.h>
 #endif
 
-#define RELEASE "1.0.94"
+#define RELEASE "1.1.0"
 
 using namespace std;
 bool should_exit = false;
@@ -117,7 +119,7 @@ int parseSearchMode(const std::string& s)
 
 // ----------------------------------------------------------------------------
 
-int parseCoinType(const std::string& s)
+CoinType parseCoinType(const std::string& s)
 {
 	std::string stype = s;
 	std::transform(stype.begin(), stype.end(), stype.begin(), ::tolower);
@@ -200,7 +202,7 @@ int main(int argc, char** argv)
 
 	bool gpuEnable = false;
 	bool gpuAutoGrid = true;
-	int compMode = SEARCH_COMPRESSED;
+	CompMode compMode = COMPRESSED;
 	vector<int> gpuId = { 0 };
 	vector<int> gridSize;
 
@@ -226,7 +228,7 @@ int main(int argc, char** argv)
 	rangeEnd.SetInt32(0);
 
 	int searchMode = 0;
-	int coinType = COIN_BTC;
+	CoinType coinType = COIN_BTC;
 
 	hashORxpoint.clear();
 
@@ -296,10 +298,10 @@ int main(int argc, char** argv)
 				return 0;
 			}
 			else if (optArg.equals("-u", "--uncomp")) {
-				compMode = SEARCH_UNCOMPRESSED;
+				compMode = UNCOMPRESSED;
 			}
 			else if (optArg.equals("-b", "--both")) {
-				compMode = SEARCH_BOTH;
+				compMode = BOTH;
 			}
 			else if (optArg.equals("-g", "--gpu")) {
 				gpuEnable = true;
@@ -338,7 +340,7 @@ int main(int argc, char** argv)
 				rKey = std::stoull(optArg.arg);
 			}
 			else if (optArg.equals("-v", "--version")) {
-				printf("KeyHunt-Cuda v" RELEASE "\n");
+				printf("keyhunt v" RELEASE "\n");
 				return 0;
 			}
 		}
@@ -356,7 +358,7 @@ int main(int argc, char** argv)
 		return -1;
 	}
 	if (coinType == COIN_ETH) {
-		compMode = SEARCH_UNCOMPRESSED;
+		compMode = UNCOMPRESSED;
 		useSSE = false;
 	}
 	if (searchMode == (int)SEARCH_MODE_MX || searchMode == (int)SEARCH_MODE_SX)
@@ -490,10 +492,10 @@ int main(int argc, char** argv)
 
 
 	printf("\n");
-	printf("KeyHunt-Cuda v" RELEASE "\n");
+	printf("keyhunt v" RELEASE "\n");
 	printf("\n");
 	if (coinType == COIN_BTC)
-		printf("COMP MODE    : %s\n", compMode == SEARCH_COMPRESSED ? "COMPRESSED" : (compMode == SEARCH_UNCOMPRESSED ? "UNCOMPRESSED" : "COMPRESSED & UNCOMPRESSED"));
+		printf("COMP MODE    : %s\n", compMode == COMPRESSED ? "COMPRESSED" : (compMode == UNCOMPRESSED ? "UNCOMPRESSED" : "COMPRESSED & UNCOMPRESSED"));
 	printf("COIN TYPE    : %s\n", coinType == COIN_BTC ? "BITCOIN" : "ETHEREUM");
 	printf("SEARCH MODE  : %s\n", searchMode == (int)SEARCH_MODE_MA ? "Multi Address" : (searchMode == (int)SEARCH_MODE_SA ? "Single Address" : (searchMode == (int)SEARCH_MODE_MX ? "Multi X Points" : "Single X Point")));
 	printf("DEVICE       : %s\n", (gpuEnable && nbCPUThread > 0) ? "CPU & GPU" : ((!gpuEnable && nbCPUThread > 0) ? "CPU" : "GPU"));
