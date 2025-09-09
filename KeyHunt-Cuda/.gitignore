@@ -1,0 +1,46 @@
+# Ignore tool directories
+.claude/
+.cursor/
+.kiro/
+.taskmaster/
+
+# Ignore build artifacts
+obj/
+x64/
+*.exe
+*.pdb
+*.lib
+*.exp
+
+# Ignore backup and temporary files
+*.bak
+*.tmp
+*.log
+
+# Ignore IDE specific files
+*.vcxproj*
+*.filters
+*.user
+
+# Ignore compiled libraries
+gmp/
+
+# Ignore documentation files (as requested)
+KeyHunt-Cuda-Implementation-Guide.md
+KeyHunt-Cuda-Optimization-Plan-20250115.md
+KeyHunt-Cuda-Performance-Audit-Report.md
+CLAUDE.md
+BACKUP_INFO.txt
+
+# Ignore Python scripts
+*.py
+
+# Ignore DLL files
+*.dll
+
+# Ignore found files
+Found.txt
+Found_Eth.txt
+
+# Ignore binary files
+*.bin
