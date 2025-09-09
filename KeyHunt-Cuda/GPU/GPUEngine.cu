@@ -113,12 +113,12 @@ __global__ void compute_keys_comp_mode_sx(uint32_t mode, uint32_t* xpoint, uint6
 // ethereum
 
 __global__ void compute_keys_mode_eth_ma(uint8_t* bloomLookUp, int BLOOM_BITS, uint8_t BLOOM_HASHES, uint64_t* keys,
-	uint32_t maxFound, uint32_t* found)
+	uint32_t maxFound, uint32_t* found, uint32_t* hash)
 {
 
 	int xPtr = (blockIdx.x * blockDim.x) * 8;
 	int yPtr = xPtr + 4 * blockDim.x;
-	ComputeKeysSEARCH_ETH_MODE_MA(keys + xPtr, keys + yPtr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, found);
+	ComputeKeysSEARCH_ETH_MODE_MA(keys + xPtr, keys + yPtr, bloomLookUp, BLOOM_BITS, BLOOM_HASHES, maxFound, found, hash);
 
 }
 
@@ -518,7 +518,7 @@ bool GPUEngine::callKernelSEARCH_MODE_MA()
 	}
 	else {
 		compute_keys_mode_eth_ma << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
-			(inputBloomLookUp, BLOOM_BITS, BLOOM_HASHES, inputKey, maxFound, outputBuffer);
+			(inputBloomLookUp, BLOOM_BITS, BLOOM_HASHES, inputKey, maxFound, outputBuffer, inputHashORxpoint);
 	}
 
 	cudaError_t err = cudaGetLastError();
