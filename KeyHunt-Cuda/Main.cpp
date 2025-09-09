@@ -13,7 +13,7 @@
 #include <unistd.h>
 #endif
 
-#define RELEASE "1.0.93"
+#define RELEASE "1.0.94"
 
 using namespace std;
 bool should_exit = false;
