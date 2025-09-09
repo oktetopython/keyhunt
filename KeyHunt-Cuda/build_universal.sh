@@ -56,17 +56,14 @@ build_for_arch() {
     CCAP=$arch CUDA="$CUDA_PATH" make gpu=1 -j$(nproc)
     
     if [ $? -eq 0 ]; then
-        # Rename the binary to include architecture
+        # Check if binary was created
         if [ -f "KeyHunt" ]; then
-            mv KeyHunt KeyHunt-cuda${arch}
-            echo "Successfully built KeyHunt-cuda${arch}"
+            echo "Successfully built KeyHunt"
+        elif [ -f "keyhunt" ]; then
+            mv keyhunt KeyHunt
+            echo "Successfully built KeyHunt"
         else
             echo "Warning: KeyHunt binary not found, but compilation succeeded"
-            # Check if binary was created with different name
-            if [ -f "keyhunt" ]; then
-                mv keyhunt keyhunt-cuda${arch}
-                echo "Successfully built keyhunt-cuda${arch}"
-            fi
         fi
     else
         echo "Failed to build for architecture ${arch}"
@@ -92,10 +89,9 @@ build_universal() {
         CCAP="$arch" CUDA="$CUDA_PATH" make gpu=1 -j$(nproc)
         
         if [ $? -eq 0 ]; then
-            # Rename the binary for this architecture
+            # Check if binary was created
             if [ -f "KeyHunt" ]; then
-                mv KeyHunt "KeyHunt-cuda${arch}"
-                echo "Successfully built KeyHunt-cuda${arch}"
+                echo "Successfully built KeyHunt for architecture sm_${arch}"
                 success_count=$((success_count + 1))
                 built_archs+=("$arch")
             else

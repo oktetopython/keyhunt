@@ -15,7 +15,7 @@
 #include <unistd.h>
 #endif
 
-#define RELEASE "1.1.0"
+#define RELEASE "1.1.1"
 
 using namespace std;
 bool should_exit = false;

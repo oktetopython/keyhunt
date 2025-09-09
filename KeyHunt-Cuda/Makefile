@@ -36,6 +36,8 @@ CUDA       ?= /usr/local/cuda-12.6
 CXXCUDA    = /usr/bin/g++
 NVCC       = $(CUDA)/bin/nvcc
 # nvcc requires joint notation w/o dot, i.e. "5.2" -> "52"
+# Set default CUDA architecture if not specified
+CCAP       ?= 75
 ccap       = $(shell echo $(CCAP) | tr -d '.')
 
 # Generate gencode arguments for multiple architectures
@@ -49,18 +51,18 @@ endif
 
 ifdef gpu
 ifdef debug
-CXXFLAGS   = -DWITHGPU -m64  -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include
+CXXFLAGS   = -DWITHGPU -m64  -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include -I../gmp/include
 else
-CXXFLAGS   =  -DWITHGPU -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include
+CXXFLAGS   =  -DWITHGPU -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include -I../gmp/include
 endif
-LFLAGS     = -lgmp -lpthread -L$(CUDA)/lib64 -lcudart
+LFLAGS     = -L../gmp/lib/x64 -lgmp -lpthread -L$(CUDA)/lib64 -lcudart
 else
 ifdef debug
-CXXFLAGS   = -m64 -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include
+CXXFLAGS   = -m64 -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include -I../gmp/include
 else
-CXXFLAGS   =  -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include
+CXXFLAGS   =  -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include -I../gmp/include
 endif
-LFLAGS     = -lgmp -lpthread
+LFLAGS     = -L../gmp/lib/x64 -lgmp -lpthread
 endif
 
 

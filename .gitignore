@@ -1,0 +1,64 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+
+# Dependency directories
+node_modules/
+
+# Environment variables
+.env
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS specific
+.DS_Store
+
+# KeyHunt specific exclusions
+KeyHunt
+KeyHunt-cuda*
+*.exe
+*.pdb
+*.exp
+*.lib
+*.dll
+obj/
+build/
+*.bin
+*.txt
+
+# Documentation and audit files
+*-Implementation-Guide.md
+*-Optimization-Plan-*.md
+*-Performance-Audit-Report.md
+
+# Backup and log files
+BACKUP_INFO.txt
+log.txt
+
+# Python generated files
+*.pyc
+__pycache__/
+
+# IDE and tool specific
+.claude/
+.cursor/
+.kiro/
+.mcp.json
+.taskmaster/
+
+# Third party libraries
+gmp/
+
+# Release builds
+x64/
