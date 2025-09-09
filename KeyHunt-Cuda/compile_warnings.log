@@ -1,0 +1,22 @@
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/Base58.o -c Base58.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/IntGroup.o -c IntGroup.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/Main.o -c Main.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/Bloom.o -c Bloom.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/Random.o -c Random.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/Timer.o -c Timer.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/Int.o -c Int.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/IntMod.o -c IntMod.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/Point.o -c Point.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/SECP256K1.o -c SECP256K1.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/KeyHunt.o -c KeyHunt.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/GPU/GPUGenerate.o -c GPU/GPUGenerate.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/hash/ripemd160.o -c hash/ripemd160.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/hash/sha256.o -c hash/sha256.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/hash/sha512.o -c hash/sha512.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/hash/ripemd160_sse.o -c hash/ripemd160_sse.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/hash/sha256_sse.o -c hash/sha256_sse.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/hash/keccak160.o -c hash/keccak160.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/GmpUtil.o -c GmpUtil.cpp
+g++ -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda-12.6/include -o obj/CmdParse.o -c CmdParse.cpp
+Making KeyHunt...
+g++ obj/Base58.o obj/IntGroup.o obj/Main.o obj/Bloom.o obj/Random.o obj/Timer.o obj/Int.o obj/IntMod.o obj/Point.o obj/SECP256K1.o obj/KeyHunt.o obj/GPU/GPUGenerate.o obj/hash/ripemd160.o obj/hash/sha256.o obj/hash/sha512.o obj/hash/ripemd160_sse.o obj/hash/sha256_sse.o obj/hash/keccak160.o obj/GmpUtil.o obj/CmdParse.o -lgmp -lpthread -o KeyHunt

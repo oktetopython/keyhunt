@@ -1,20 +1,23 @@
 #include "GmpUtil.h"
-#include <gmp.h>
-#include <gmpxx.h>
+#include "Int.h"
+#include <string>
+#include <cmath>
 
 // Calculate percentage: (searched_count * 100) / total_range
 double CalcPercantage(Int searchedCount, Int start, Int range)
 {
 	// Calculate: (searchedCount * 100) / range
 	// searchedCount is the number of keys searched, not absolute position
-	mpz_class x(searchedCount.GetBase16().c_str(), 16);
-	mpz_class r(range.GetBase16().c_str(), 16);
-
-	// x = searchedCount * 100
-	x = x * 100;
-
+	
+	// Convert Int to double for percentage calculation
+	double searched = searchedCount.ToDouble();
+	double total = range.ToDouble();
+	
+	// Avoid division by zero
+	if (total == 0.0) {
+		return 0.0;
+	}
+	
 	// Calculate percentage
-	mpf_class y(x);
-	y = y / mpf_class(r);
-	return y.get_d();
+	return (searched * 100.0) / total;
 }

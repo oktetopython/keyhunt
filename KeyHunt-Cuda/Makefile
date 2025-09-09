@@ -51,18 +51,18 @@ endif
 
 ifdef gpu
 ifdef debug
-CXXFLAGS   = -DWITHGPU -m64  -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include -I../gmp/include
+CXXFLAGS   = -DWITHGPU -m64  -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include
 else
-CXXFLAGS   =  -DWITHGPU -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include -I../gmp/include
+CXXFLAGS   =  -DWITHGPU -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include
 endif
-LFLAGS     = -L../gmp/lib/x64 -lgmp -lpthread -L$(CUDA)/lib64 -lcudart
+LFLAGS     = -lpthread -L$(CUDA)/lib64 -lcudart
 else
 ifdef debug
-CXXFLAGS   = -m64 -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include -I../gmp/include
+CXXFLAGS   = -m64 -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include
 else
-CXXFLAGS   =  -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include -I../gmp/include
+CXXFLAGS   =  -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include
 endif
-LFLAGS     = -L../gmp/lib/x64 -lgmp -lpthread
+LFLAGS     = -lpthread
 endif
 
 

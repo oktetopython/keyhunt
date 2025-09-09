@@ -64,6 +64,14 @@ build_for_arch() {
             echo "Successfully built KeyHunt"
         else
             echo "Warning: KeyHunt binary not found, but compilation succeeded"
+            # Try to manually link if make failed to create binary
+            echo "Attempting manual linking..."
+            g++ obj/*.o obj/GPU/*.o obj/hash/*.o -lpthread -L$CUDA_PATH/lib64 -lcudart -o KeyHunt
+            if [ $? -eq 0 ] && [ -f "KeyHunt" ]; then
+                echo "Manual linking successful!"
+            else
+                echo "Manual linking failed"
+            fi
         fi
     else
         echo "Failed to build for architecture ${arch}"
@@ -94,6 +102,8 @@ build_universal() {
                 echo "Successfully built KeyHunt for architecture sm_${arch}"
                 success_count=$((success_count + 1))
                 built_archs+=("$arch")
+                # Copy binary with architecture suffix
+                cp KeyHunt KeyHunt_sm${arch}
             else
                 echo "Warning: KeyHunt binary not found for architecture $arch"
             fi
@@ -101,8 +111,9 @@ build_universal() {
             echo "Failed to build for architecture ${arch}"
         fi
         
-        # Clean for next build
-        make clean
+        # Clean for next build but keep object files for final linking
+        # Only clean GPU object files to avoid recompiling CPU code
+        rm -f obj/GPU/*.o
     done
     
     if [ $success_count -gt 0 ]; then
