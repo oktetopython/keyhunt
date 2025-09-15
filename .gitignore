@@ -1,0 +1,81 @@
+# .gitignore for Keyhunt-CUDA
+
+# Build directories
+build/
+build-*/
+cmake-build-*/
+
+# Compiled binaries
+*.exe
+*.out
+keyhunt
+keyhunt-*
+
+# Object files
+*.o
+*.obj
+*.cu.o
+
+# CUDA compiled files
+*.cubin
+*.ptx
+*.fatbin
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+*.cmake
+
+# IDE files
+.vscode/
+.idea/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Runtime data (keep structure, ignore contents)
+data/checkpoint/*.dat
+data/logs/*.log
+data/logs/*.json
+data/results/*.json
+data/results/*.csv
+data/results/*.txt
+
+# Configuration files with sensitive data
+data/config/private_ranges.txt
+data/config/target_addresses.txt
+
+# Temporary files
+*.tmp
+*.temp
+*~
+.DS_Store
+Thumbs.db
+
+# Performance profiling
+*.nvprof
+*.nsight-cuprof-report
+*.sqlite
+
+# Core dumps
+core
+core.*
+
+# Backup files
+*.bak
+*.backup
+
+# Python cache (if any Python tools used)
+__pycache__/
+*.pyc
+*.pyo
+
+# Keep directory structure but ignore most contents
+!data/config/.gitkeep
+!data/checkpoint/.gitkeep
+!data/logs/.gitkeep
+!data/results/.gitkeep

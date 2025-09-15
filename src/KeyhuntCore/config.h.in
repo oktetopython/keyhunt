@@ -1,0 +1,152 @@
+// Keyhunt-CUDA Project Configuration Template
+// This file is processed by CMake to generate the final config.h
+
+#pragma once
+
+#ifndef KEYHUNT_CONFIG_H
+#define KEYHUNT_CONFIG_H
+
+// Version Information (filled by CMake)
+#define KEYHUNT_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define KEYHUNT_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define KEYHUNT_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define KEYHUNT_VERSION "@PROJECT_VERSION@"
+
+// Build Configuration
+#cmakedefine CMAKE_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#cmakedefine AGGRESSIVE_OPTIMIZATIONS @ENABLE_AGGRESSIVE_OPTIMIZATIONS@
+
+// CUDA Configuration
+#define CUDA_VERSION_REQUIRED 11000  // CUDA 11.0+
+#define MIN_COMPUTE_CAPABILITY 75    // Turing architecture minimum
+#define CUDA_ARCHITECTURES "@CMAKE_CUDA_ARCHITECTURES@"
+
+// Multi-GPU Support
+#cmakedefine HAVE_NCCL @HAVE_NCCL@
+#cmakedefine NCCL_ENABLED @NCCL_ENABLED@
+#cmakedefine MAX_GPU_DEVICES @MAX_GPU_DEVICES@
+
+// CPU Reference Validation
+#cmakedefine SECP256K1_VALIDATION_ENABLED @SECP256K1_VALIDATION_ENABLED@
+#cmakedefine CPU_REFERENCE_AVAILABLE @CPU_REFERENCE_AVAILABLE@
+
+// Performance Targets
+#define TARGET_KEYS_PER_SECOND_TURING 1000000000ULL   // 1000M keys/s
+#define TARGET_KEYS_PER_SECOND_HOPPER 4000000000ULL   // 4000M keys/s
+#define TARGET_GPU_UTILIZATION 90                     // >90% utilization
+
+// Scientific Validation
+#cmakedefine SCIENTIFIC_VALIDATION_ENABLED @SCIENTIFIC_VALIDATION_ENABLED@
+#define PRECISION_THRESHOLD 1e-10  // <1e-10 relative error
+#define VALIDATION_SAMPLE_SIZE 100000  // Default validation samples
+
+// Memory Configuration
+#define DEFAULT_BATCH_SIZE 1000000
+#define MAX_GPU_MEMORY_USAGE 0.9f  // Use up to 90% of GPU memory
+
+// CUDA Kernel Configuration
+#define DEFAULT_THREADS_PER_BLOCK 256
+#define MAX_BLOCKS_PER_GRID 65535
+#define DEFAULT_SHARED_MEMORY_SIZE 49152  // 48KB
+
+// Optimization Settings
+#ifdef AGGRESSIVE_OPTIMIZATIONS
+    #define MAX_REGISTERS_PER_THREAD 64
+    #define USE_FAST_MATH 1
+    #define ENABLE_LOOP_UNROLLING 1
+#else
+    #define MAX_REGISTERS_PER_THREAD 32
+    #define USE_FAST_MATH 0
+    #define ENABLE_LOOP_UNROLLING 0
+#endif
+
+// Paths Configuration
+#define CONFIG_DIR "data/config"
+#define CHECKPOINT_DIR "data/checkpoint"  
+#define LOGS_DIR "data/logs"
+#define RESULTS_DIR "data/results"
+
+// File Names
+#define CONFIG_FILE "config.txt"
+#define PRIVATE_RANGES_FILE "private_ranges.txt"
+#define TARGET_ADDRESSES_FILE "target_addresses.txt"
+#define CHECKPOINT_FILE "checkpoint.dat"
+#define EXPERIMENTAL_LOG_FILE "experimental_log.json"
+#define VALIDATION_REPORT_FILE "validation_report.json"
+
+// Logging Configuration
+#define LOG_LEVEL_DEBUG 0
+#define LOG_LEVEL_INFO 1
+#define LOG_LEVEL_WARNING 2
+#define LOG_LEVEL_ERROR 3
+
+#ifdef KEYHUNT_DEBUG
+    #define DEFAULT_LOG_LEVEL LOG_LEVEL_DEBUG
+#else
+    #define DEFAULT_LOG_LEVEL LOG_LEVEL_INFO
+#endif
+
+// Error Codes
+#define KEYHUNT_SUCCESS 0
+#define KEYHUNT_ERROR_CUDA -1
+#define KEYHUNT_ERROR_MEMORY -2
+#define KEYHUNT_ERROR_VALIDATION -3
+#define KEYHUNT_ERROR_CONFIG -4
+#define KEYHUNT_ERROR_IO -5
+
+// Feature Flags
+#define ENABLE_CHECKPOINT_COMPRESSION 1
+#define ENABLE_PERFORMANCE_MONITORING 1
+#define ENABLE_EXPERIMENTAL_LOGGING 1
+
+// Validation Settings
+#define ENABLE_CPU_GPU_CONSISTENCY_CHECK 1
+#define ENABLE_MATHEMATICAL_PROPERTY_CHECK 1
+#define ENABLE_EDGE_CASE_VALIDATION 1
+
+// Multi-GPU Settings
+#ifdef HAVE_NCCL
+    #ifndef MAX_GPU_DEVICES
+        #define MAX_GPU_DEVICES 8
+    #endif
+    #define ENABLE_INTER_GPU_COMMUNICATION 1
+    #define ENABLE_DYNAMIC_LOAD_BALANCING 1
+    #define ENABLE_NCCL_RINGS 1
+#else
+    #ifndef MAX_GPU_DEVICES
+        #define MAX_GPU_DEVICES 4
+    #endif
+    #define ENABLE_INTER_GPU_COMMUNICATION 0
+    #define ENABLE_DYNAMIC_LOAD_BALANCING 0
+    #define ENABLE_NCCL_RINGS 0
+#endif
+
+// Scientific Validation Settings
+#ifdef SECP256K1_VALIDATION_ENABLED
+    #define ENABLE_CPU_GPU_CONSISTENCY_CHECK 1
+    #define ENABLE_REFERENCE_VALIDATION 1
+#else
+    #define ENABLE_CPU_GPU_CONSISTENCY_CHECK 0
+    #define ENABLE_REFERENCE_VALIDATION 0
+    #warning "CPU reference validation disabled - scientific accuracy reduced"
+#endif
+
+// Bloom Filter Configuration
+#define DEFAULT_BLOOM_FILTER_SIZE 1048576  // 1MB
+#define DEFAULT_BLOOM_FILTER_FPR 0.001     // 0.1% false positive rate
+#define MAX_BLOOM_FILTER_HASH_FUNCTIONS 8
+
+// Scanning Configuration
+#define DEFAULT_CHECKPOINT_INTERVAL 60     // seconds
+#define MAX_PRIVATE_KEY_RANGE_SIZE (1ULL << 40)  // 2^40 keys maximum
+#define MIN_BATCH_SIZE 1000
+#define MAX_BATCH_SIZE 10000000
+
+// Performance Monitoring
+#define PERFORMANCE_SAMPLE_INTERVAL 1000   // milliseconds
+#define PERFORMANCE_HISTORY_SIZE 3600      // 1 hour of samples
+
+// Build timestamp
+#define BUILD_TIMESTAMP __DATE__ " " __TIME__
+
+#endif // KEYHUNT_CONFIG_H

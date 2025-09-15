@@ -1,0 +1,522 @@
+openapi: 3.0.3
+info:
+  title: Keyhunt-CUDA Scientific Research API
+  description: GPU-accelerated Bitcoin private key scanning system for scientific research and Bitcoin puzzle challenges
+  version: 0.1.0
+  contact:
+    name: Keyhunt-CUDA Research Team
+  license:
+    name: Scientific Research License
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /scan/configure:
+    post:
+      summary: Configure private key scanning range
+      description: Configure a new private key range for systematic scanning with optional GPU device assignment
+      operationId: configureScan
+      tags:
+        - Scanning Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanConfigRequest'
+      responses:
+        '200':
+          description: Range configured successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanConfigResponse'
+        '400':
+          description: Invalid configuration parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /scan/{rangeId}/start:
+    post:
+      summary: Start private key scanning
+      description: Initiate scanning operation for a configured range
+      operationId: startScan
+      tags:
+        - Scanning Operations
+      parameters:
+        - name: rangeId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Range identifier from configure operation
+      responses:
+        '200':
+          description: Scan started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanStartResponse'
+        '404':
+          description: Range not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /scan/{rangeId}/status:
+    get:
+      summary: Get scan status and progress
+      description: Retrieve current status, progress metrics, and performance data for active scan
+      operationId: getScanStatus
+      tags:
+        - Scanning Operations
+      parameters:
+        - name: rangeId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Range identifier
+      responses:
+        '200':
+          description: Current scan status and metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanStatusResponse'
+
+  /scan/{rangeId}/pause:
+    post:
+      summary: Pause active scan
+      description: Pause scanning operation and create checkpoint for resumption
+      operationId: pauseScan
+      tags:
+        - Scanning Operations
+      parameters:
+        - name: rangeId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Range identifier
+      responses:
+        '200':
+          description: Scan paused successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanPauseResponse'
+
+  /scan/{rangeId}/resume:
+    post:
+      summary: Resume paused scan
+      description: Resume scanning from last checkpoint
+      operationId: resumeScan
+      tags:
+        - Scanning Operations
+      parameters:
+        - name: rangeId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Range identifier
+      responses:
+        '200':
+          description: Scan resumed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanResumeResponse'
+
+  /targets/configure:
+    post:
+      summary: Configure target Bitcoin addresses
+      description: Set up target addresses for matching during scan operations
+      operationId: configureTargets
+      tags:
+        - Target Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TargetConfigRequest'
+      responses:
+        '200':
+          description: Targets configured successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TargetConfigResponse'
+
+  /validation/run:
+    post:
+      summary: Run scientific validation tests
+      description: Execute CPU/GPU consistency validation with configurable precision requirements
+      operationId: runValidation
+      tags:
+        - Scientific Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidationRequest'
+      responses:
+        '200':
+          description: Validation test initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+
+  /results/matches:
+    get:
+      summary: Get scan results and matches
+      description: Retrieve found private keys and their corresponding Bitcoin addresses
+      operationId: getResults
+      tags:
+        - Results
+      parameters:
+        - name: rangeId
+          in: query
+          schema:
+            type: string
+          description: Filter by specific range ID
+        - name: verified
+          in: query
+          schema:
+            type: boolean
+          description: Filter by verification status
+      responses:
+        '200':
+          description: List of matches and results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchResults'
+
+  /experimental/report:
+    get:
+      summary: Generate experimental research report
+      description: Create comprehensive scientific report with performance metrics and validation data
+      operationId: generateReport
+      tags:
+        - Research & Reporting
+      parameters:
+        - name: experimentId
+          in: query
+          schema:
+            type: string
+          description: Specific experiment identifier
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, csv, pdf]
+            default: json
+          description: Report output format
+      responses:
+        '200':
+          description: Generated experimental report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentalReport'
+
+components:
+  schemas:
+    ScanConfigRequest:
+      type: object
+      required:
+        - start_key
+        - end_key
+      properties:
+        start_key:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
+          description: Starting private key in hexadecimal format (64 characters)
+          example: "0000000000000000000000000000000000000000000000000000000000000001"
+        end_key:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
+          description: Ending private key in hexadecimal format (64 characters)
+          example: "000000000000000000000000000000000000000000000000000000000000ffff"
+        stride:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Step size between keys during scanning
+        gpu_devices:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+          description: Array of GPU device IDs to use for scanning
+          example: [0, 1]
+
+    ScanConfigResponse:
+      type: object
+      properties:
+        range_id:
+          type: string
+          description: Unique identifier for the configured range
+        total_keys:
+          type: integer
+          format: int64
+          description: Total number of keys in the range
+        estimated_time:
+          type: number
+          format: double
+          description: Estimated scanning time in seconds
+        status:
+          type: string
+          enum: [configured, ready]
+          description: Current range status
+
+    ScanStartResponse:
+      type: object
+      properties:
+        range_id:
+          type: string
+          description: Range identifier
+        status:
+          type: string
+          enum: [scanning]
+          description: Updated scan status
+        started_at:
+          type: string
+          format: date-time
+          description: Scan start timestamp
+        gpu_devices_active:
+          type: array
+          items:
+            type: integer
+          description: GPU devices currently processing
+
+    ScanStatusResponse:
+      type: object
+      properties:
+        range_id:
+          type: string
+        status:
+          type: string
+          enum: [configured, scanning, paused, completed, failed, cancelled]
+        progress_percentage:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+        keys_processed:
+          type: integer
+          format: int64
+        keys_per_second:
+          type: number
+          format: double
+        gpu_utilization:
+          type: array
+          items:
+            type: number
+            format: double
+        estimated_remaining_time:
+          type: number
+          format: double
+        last_updated:
+          type: string
+          format: date-time
+
+    ScanPauseResponse:
+      type: object
+      properties:
+        range_id:
+          type: string
+        status:
+          type: string
+          enum: [paused]
+        checkpoint_id:
+          type: string
+          description: Checkpoint identifier for resumption
+        keys_processed:
+          type: integer
+          format: int64
+
+    ScanResumeResponse:
+      type: object
+      properties:
+        range_id:
+          type: string
+        status:
+          type: string
+          enum: [scanning]
+        resumed_at:
+          type: string
+          format: date-time
+        keys_processed:
+          type: integer
+          format: int64
+
+    TargetConfigRequest:
+      type: object
+      required:
+        - addresses
+      properties:
+        addresses:
+          type: array
+          items:
+            type: object
+            required:
+              - address
+            properties:
+              address:
+                type: string
+                description: Bitcoin address in Base58 format
+              priority:
+                type: string
+                enum: [high, medium, low]
+                default: medium
+              description:
+                type: string
+                description: Optional annotation
+
+    TargetConfigResponse:
+      type: object
+      properties:
+        targets_configured:
+          type: integer
+          description: Number of target addresses configured
+        invalid_addresses:
+          type: array
+          items:
+            type: string
+          description: List of invalid addresses rejected
+
+    ValidationRequest:
+      type: object
+      required:
+        - test_type
+      properties:
+        test_type:
+          type: string
+          enum: [ecc_operations, address_generation, full_pipeline]
+        sample_count:
+          type: integer
+          minimum: 1
+          default: 1000
+        precision_threshold:
+          type: number
+          format: double
+          default: 1e-10
+        gpu_devices:
+          type: array
+          items:
+            type: integer
+
+    ValidationResponse:
+      type: object
+      properties:
+        test_id:
+          type: string
+        status:
+          type: string
+          enum: [running, completed, failed]
+        sample_count:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+
+    MatchResults:
+      type: object
+      properties:
+        total_matches:
+          type: integer
+        matches:
+          type: array
+          items:
+            type: object
+            properties:
+              private_key:
+                type: string
+                pattern: '^[0-9a-fA-F]{64}$'
+              address:
+                type: string
+              found_at:
+                type: string
+                format: date-time
+              verified:
+                type: boolean
+              range_id:
+                type: string
+
+    ExperimentalReport:
+      type: object
+      properties:
+        experiment_id:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        performance_metrics:
+          type: object
+          properties:
+            peak_keys_per_second:
+              type: number
+              format: double
+            average_keys_per_second:
+              type: number
+              format: double
+            gpu_utilization_avg:
+              type: number
+              format: double
+        validation_results:
+          type: object
+          properties:
+            tests_passed:
+              type: integer
+            tests_failed:
+              type: integer
+            max_error:
+              type: number
+              format: double
+            precision_achieved:
+              type: number
+              format: double
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Scanning Operations
+    description: Private key range scanning and management
+  - name: Target Management
+    description: Bitcoin address target configuration
+  - name: Scientific Validation
+    description: CPU/GPU consistency validation
+  - name: Results
+    description: Scan results and match retrieval
+  - name: Research & Reporting
+    description: Experimental data and scientific reporting
