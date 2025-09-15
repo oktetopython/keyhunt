@@ -79,3 +79,7 @@ __pycache__/
 !data/checkpoint/.gitkeep
 !data/logs/.gitkeep
 !data/results/.gitkeep
+
+# Exclude embedded git repositories
+specs/001-keyhunt-cuda-puzzle/src/BitCrack/
+specs/001-keyhunt-cuda-puzzle/src/CudaBrainSecp/
