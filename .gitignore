@@ -83,3 +83,7 @@ __pycache__/
 # Exclude embedded git repositories
 specs/001-keyhunt-cuda-puzzle/src/BitCrack/
 specs/001-keyhunt-cuda-puzzle/src/CudaBrainSecp/
+
+# Exclude tool directories (explicitly as requested)
+.claude/
+.specify/
