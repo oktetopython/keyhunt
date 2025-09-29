@@ -22,35 +22,11 @@
 // SHA256
 // ---------------------------------------------------------------------------------
 
-__device__ __constant__ uint32_t K[] = {
-	0x428A2F98, 0x71374491, 0xB5C0FBCF, 0xE9B5DBA5,
-	0x3956C25B, 0x59F111F1, 0x923F82A4, 0xAB1C5ED5,
-	0xD807AA98, 0x12835B01, 0x243185BE, 0x550C7DC3,
-	0x72BE5D74, 0x80DEB1FE, 0x9BDC06A7, 0xC19BF174,
-	0xE49B69C1, 0xEFBE4786, 0x0FC19DC6, 0x240CA1CC,
-	0x2DE92C6F, 0x4A7484AA, 0x5CB0A9DC, 0x76F988DA,
-	0x983E5152, 0xA831C66D, 0xB00327C8, 0xBF597FC7,
-	0xC6E00BF3, 0xD5A79147, 0x06CA6351, 0x14292967,
-	0x27B70A85, 0x2E1B2138, 0x4D2C6DFC, 0x53380D13,
-	0x650A7354, 0x766A0ABB, 0x81C2C92E, 0x92722C85,
-	0xA2BFE8A1, 0xA81A664B, 0xC24B8B70, 0xC76C51A3,
-	0xD192E819, 0xD6990624, 0xF40E3585, 0x106AA070,
-	0x19A4C116, 0x1E376C08, 0x2748774C, 0x34B0BCB5,
-	0x391C0CB3, 0x4ED8AA4A, 0x5B9CCA4F, 0x682E6FF3,
-	0x748F82EE, 0x78A5636F, 0x84C87814, 0x8CC70208,
-	0x90BEFFFA, 0xA4506CEB, 0xBEF9A3F7, 0xC67178F2,
-};
+// SHA256 K constants are defined in GPUGlobals.cu
+extern __device__ __constant__ uint32_t K[64];
 
-__device__ __constant__ uint32_t I[] = {
-	0x6a09e667ul,
-	0xbb67ae85ul,
-	0x3c6ef372ul,
-	0xa54ff53aul,
-	0x510e527ful,
-	0x9b05688cul,
-	0x1f83d9abul,
-	0x5be0cd19ul,
-};
+// SHA256 I constants are defined in GPUGlobals.cu
+extern __device__ __constant__ uint32_t I[8];
 
 // ---------------------------------------------------------------------------------
 // Common utility functions
@@ -250,7 +226,7 @@ S2Round(b, c, d, e, f, g, h, a, K[k + 15], w[15]);\
 #define bswap32(v) __byte_perm(v, 0, 0x0123)
 
 // Initialise state
-__device__ void SHA256Initialize(uint32_t s[8])
+__device__ __forceinline__ void SHA256Initialize(uint32_t s[8])
 {
 #pragma unroll 8
 	for (int i = 0; i < 8; i++)
@@ -260,7 +236,7 @@ __device__ void SHA256Initialize(uint32_t s[8])
 #define DEF(x,y) uint32_t x = s[y]
 
 // Perform SHA-256 transformations, process 64-byte chunks
-__device__ void SHA256Transform(uint32_t s[8], uint32_t* w)
+__device__ __forceinline__ void SHA256Transform(uint32_t s[8], uint32_t* w)
 {
 
 	uint32_t t1;
@@ -298,9 +274,10 @@ __device__ void SHA256Transform(uint32_t s[8], uint32_t* w)
 // ---------------------------------------------------------------------------------
 // RIPEMD160
 // ---------------------------------------------------------------------------------
-__device__ __constant__ uint64_t ripemd160_sizedesc_32 = 32 << 3;
+// RIPEMD160 constants are defined in GPUGlobals.cu
+extern __device__ __constant__ uint64_t ripemd160_sizedesc_32;
 
-__device__ void RIPEMD160Initialize(uint32_t s[5])
+__device__ __forceinline__ void RIPEMD160Initialize(uint32_t s[5])
 {
 
 	s[0] = 0x67452301ul;
@@ -335,7 +312,7 @@ __device__ void RIPEMD160Initialize(uint32_t s[5])
 #define R52(a,b,c,d,e,x,r) RPRound(a, b, c, d, e, f1(b, c, d), x, 0, r)
 
 /** Perform a RIPEMD-160 transformation, processing a 64-byte chunk. */
-__device__ void RIPEMD160Transform(uint32_t s[5], uint32_t* w)
+__device__ __forceinline__ void RIPEMD160Transform(uint32_t s[5], uint32_t* w)
 {
 
 	uint32_t u;
@@ -519,7 +496,7 @@ __device__ void RIPEMD160Transform(uint32_t s[5], uint32_t* w)
 // Key encoding
 // ---------------------------------------------------------------------------------
 
-__device__ __noinline__ void _GetHash160Comp(uint64_t* x, uint8_t isOdd, uint8_t* hash)
+__device__ __forceinline__ void _GetHash160Comp(uint64_t* x, uint8_t isOdd, uint8_t* hash)
 {
 
 	uint32_t* x32 = (uint32_t*)(x);
@@ -566,7 +543,7 @@ __device__ __noinline__ void _GetHash160Comp(uint64_t* x, uint8_t isOdd, uint8_t
 
 }
 
-__device__ __noinline__ void _GetHash160CompSym(uint64_t* x, uint8_t* h1, uint8_t* h2)
+__device__ __forceinline__ void _GetHash160CompSym(uint64_t* x, uint8_t* h1, uint8_t* h2)
 {
 
 	uint32_t* x32 = (uint32_t*)(x);
@@ -638,7 +615,7 @@ __device__ __noinline__ void _GetHash160CompSym(uint64_t* x, uint8_t* h1, uint8_
 
 }
 
-__device__ __noinline__ void _GetHash160(uint64_t* x, uint64_t* y, uint8_t* hash)
+__device__ __forceinline__ void _GetHash160(uint64_t* x, uint64_t* y, uint8_t* hash)
 {
 
 	uint32_t* x32 = (uint32_t*)(x);
@@ -701,7 +678,7 @@ __device__ __noinline__ void _GetHash160(uint64_t* x, uint64_t* y, uint8_t* hash
 
 }
 
-__device__ __noinline__ void _GetHash160P2SHComp(uint64_t* x, uint8_t isOdd, uint8_t* hash)
+__device__ __forceinline__ void _GetHash160P2SHComp(uint64_t* x, uint8_t isOdd, uint8_t* hash)
 {
 
 	uint32_t h[5];
@@ -747,7 +724,7 @@ __device__ __noinline__ void _GetHash160P2SHComp(uint64_t* x, uint8_t isOdd, uin
 
 }
 
-__device__ __noinline__ void _GetHash160P2SHUncomp(uint64_t* x, uint64_t* y, uint8_t* hash)
+__device__ __forceinline__ void _GetHash160P2SHUncomp(uint64_t* x, uint64_t* y, uint8_t* hash)
 {
 
 	uint32_t h[5];
@@ -807,20 +784,12 @@ typedef union {
 	uint32_t d[50];
 } _KECCAK_STATE;
 
-__device__ __constant__ uint64_t _KECCAKF_RNDC[24] = {
-	0x0000000000000001ULL, 0x0000000000008082ULL, 0x800000000000808aULL,
-	0x8000000080008000ULL, 0x000000000000808bULL, 0x0000000080000001ULL,
-	0x8000000080008081ULL, 0x8000000000008009ULL, 0x000000000000008aULL,
-	0x0000000000000088ULL, 0x0000000080008009ULL, 0x000000008000000aULL,
-	0x000000008000808bULL, 0x800000000000008bULL, 0x8000000000008089ULL,
-	0x8000000000008003ULL, 0x8000000000008002ULL, 0x8000000000000080ULL,
-	0x000000000000800aULL, 0x800000008000000aULL, 0x8000000080008081ULL,
-	0x8000000000008080ULL, 0x0000000080000001ULL, 0x8000000080008008ULL
-};
+// KECCAK constants are defined in GPUGlobals.cu
+extern __device__ __constant__ uint64_t _KECCAKF_RNDC[24];
 
 #define ROTL64(a,b) (((a) << (b)) | ((a) >> (64 - b)))
 
-__device__ __noinline__ void _GetHashKeccak160(uint64_t* x, uint64_t* y, uint32_t* hash)
+__device__ __forceinline__ void _GetHashKeccak160(uint64_t* x, uint64_t* y, uint32_t* hash)
 {
 	_KECCAK_STATE e;
 	uint32_t* X = (uint32_t*)x;

@@ -30,6 +30,7 @@ public:
 	Secp256K1();
 	~Secp256K1();
 	void Init();
+	void SetFastInit(bool fast);
 	Point ComputePublicKey(Int* privKey);
 	Point NextKey(Point& key);
 	void Check();
@@ -72,7 +73,9 @@ private:
 	uint8_t GetByte(std::string& str, int idx);
 
 	Int GetY(Int x, bool isEven);
+	void InitializeFastGeneratorTable();  // Fast initialization using pre-computed values
 	Point GTable[256 * 32];     // Generator table
+	bool useFastInit;           // Use fast initialization for PUZZLE71 mode
 
 };
 

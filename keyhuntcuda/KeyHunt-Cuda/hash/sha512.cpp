@@ -378,15 +378,26 @@ void hmac_sha512(unsigned char *key, int key_length, unsigned char *message, int
     uint8_t hash[SHA512_HASH_LENGTH];
     int i;
 
-    // TODO Handle key larger than 128
+    uint8_t actual_key[SHA512_BLOCK_SIZE];
+    int actual_key_length;
 
-    for (i = 0; i < key_length && i < SHA512_BLOCK_SIZE; i++) {
-        ipad[i] = key[i] ^ IPAD;
-        opad[i] = key[i] ^ OPAD;
+    // Handle key larger than 128, as per HMAC spec
+    if (key_length > SHA512_BLOCK_SIZE) {
+        sha512(key, key_length, actual_key);
+        actual_key_length = SHA512_HASH_LENGTH;
+    } else {
+        memcpy(actual_key, key, key_length);
+        actual_key_length = key_length;
     }
-    for (; i < SHA512_BLOCK_SIZE; i++) {
-        ipad[i] = IPAD;
-        opad[i] = OPAD;
+    
+    // Zero-pad the rest of the key block if necessary
+    if(actual_key_length < SHA512_BLOCK_SIZE) {
+        memset(actual_key + actual_key_length, 0, SHA512_BLOCK_SIZE - actual_key_length);
+    }
+
+    for (i = 0; i < SHA512_BLOCK_SIZE; i++) {
+        ipad[i] = actual_key[i] ^ IPAD;
+        opad[i] = actual_key[i] ^ OPAD;
     }
 
     CSHA512 h;

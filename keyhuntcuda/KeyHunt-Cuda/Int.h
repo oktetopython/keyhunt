@@ -37,9 +37,21 @@
 #error Unsuported size
 #endif
 
+// Platform-specific alignment macro
+#ifdef _MSC_VER
+  #define ALIGNED(x) __declspec(align(x))
+#else
+  #define ALIGNED(x) __attribute__((aligned(x)))
+#endif
+
 class Int {
 
 public:
+	// Members - explicitly define bits64 array for Linux compatibility
+	union {
+		ALIGNED(16) uint32_t bits[NB32BLOCK];
+		ALIGNED(16) uint64_t bits64[NB64BLOCK];
+	};
 
 	Int();
 	Int(int64_t i64);
@@ -180,25 +192,6 @@ public:
 	static void Check();
 	static bool CheckInv(Int* a);
 
-
-
-	// Align to 16 bytes boundary
-	//union {
-	//	__declspec(align(16)) uint32_t bits[NB32BLOCK];
-	//	__declspec(align(16)) uint64_t bits64[NB64BLOCK];
-	//};
-
-	//union {
-	//	__declspec(align(16)) uint32_t bits[NB32BLOCK];
-	//	__declspec(align(16)) uint64_t bits64[NB64BLOCK];
-	//};
-
-	// 使用显式对齐指令修复内存对齐问题
-	union {
-		uint32_t bits[NB32BLOCK] __attribute__((aligned(16)));
-		uint64_t bits64[NB64BLOCK] __attribute__((aligned(16)));
-	};
-
 private:
 
 	void MatrixVecMul(Int* u, Int* v, int64_t _11, int64_t _12, int64_t _21, int64_t _22, uint64_t* cu, uint64_t* cv);
@@ -220,44 +213,39 @@ private:
 
 #ifndef WIN64
 
-// Missing intrinsics
-static uint64_t inline _umul128(uint64_t a, uint64_t b, uint64_t* h) {
-	uint64_t rhi;
-	uint64_t rlo;
-	__asm__("mulq  %[b];" :"=d"(rhi), "=a"(rlo) : "1"(a), [b]"rm"(b));
-	*h = rhi;
-	return rlo;
+// Missing intrinsics for non-Windows platforms
+#include <x86intrin.h>
+
+inline uint64_t _umul128(uint64_t a, uint64_t b, uint64_t* h) {
+    __uint128_t result = (__uint128_t)a * b;
+    *h = result >> 64;
+    return (uint64_t)result;
 }
 
-static int64_t inline _mul128(int64_t a, int64_t b, int64_t* h) {
-	uint64_t rhi;
-	uint64_t rlo;
-	__asm__("imulq  %[b];" :"=d"(rhi), "=a"(rlo) : "1"(a), [b]"rm"(b));
-	*h = rhi;
-	return rlo;
+inline int64_t _mul128(int64_t a, int64_t b, int64_t* h) {
+    __int128_t result = (__int128_t)a * b;
+    *h = result >> 64;
+    return (int64_t)result;
 }
 
-static uint64_t inline _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t* r) {
-	uint64_t q;
-	uint64_t _r;
-	__asm__("divq  %[d];" :"=d"(_r), "=a"(q) : "d"(hi), "a"(lo), [d]"rm"(d));
-	*r = _r;
-	return q;
-}
-
-static uint64_t inline __rdtsc() {
-	uint32_t h;
-	uint32_t l;
-	__asm__("rdtsc;" :"=d"(h), "=a"(l));
-	return (uint64_t)h << 32 | (uint64_t)l;
+inline uint64_t _udiv128(uint64_t hi, uint64_t lo, uint64_t d, uint64_t* r) {
+    __uint128_t dividend = ((__uint128_t)hi << 64) | lo;
+    *r = dividend % d;
+    return dividend / d;
 }
 
 #define __shiftright128(a,b,n) ((a)>>(n))|((b)<<(64-(n)))
 #define __shiftleft128(a,b,n) ((b)<<(n))|((a)>>(64-(n)))
 
 
-#define _subborrow_u64(a,b,c,d) __builtin_ia32_sbb_u64(a,b,c,(long long unsigned int*)d);
-#define _addcarry_u64(a,b,c,d) __builtin_ia32_addcarryx_u64(a,b,c,(long long unsigned int*)d);
+#ifdef _MSC_VER
+  #include <intrin.h>
+  #define _subborrow_u64(a,b,c,d) _subborrow_u64(a,b,c,(unsigned long long*)d)
+  #define _addcarry_u64(a,b,c,d) _addcarry_u64(a,b,c,(unsigned long long*)d)
+#else
+  #define _subborrow_u64(a,b,c,d) __builtin_ia32_sbb_u64(a,b,c,(long long unsigned int*)d);
+  #define _addcarry_u64(a,b,c,d) __builtin_ia32_addcarryx_u64(a,b,c,(long long unsigned int*)d);
+#endif
 #define _byteswap_uint64 __builtin_bswap64
 #define LZC(x) __builtin_clzll(x)
 #define TZC(x) __builtin_ctzll(x)
@@ -267,20 +255,6 @@ static uint64_t inline __rdtsc() {
 #include <intrin.h>
 #pragma intrinsic(_BitScanReverse64)
 #pragma intrinsic(_BitScanForward64)
-//#define TZC(x) _tzcnt_u64(x)
-//#define LZC(x) _lzcnt_u64(x)
-
-//static unsigned __int64 TZC(unsigned __int64 x) {
-//	if (x == 0ULL)
-//		return 64;
-//	return _tzcnt_u64(x);
-//}
-//
-//static unsigned __int64 LZC(unsigned __int64 x) {
-//	if (x == 0ULL)
-//		return 64;
-//	return 63ULL - _lzcnt_u64(x);
-//}
 
 static unsigned __int64 TZC(unsigned __int64 x) {
 	if (x == 0ULL)
@@ -308,15 +282,27 @@ i.bits64[2] = i.bits64[1];\
 i.bits64[3] = i.bits64[1];\
 i.bits64[4] = i.bits64[1];
 
+// Helper function for 128-bit comparison
+static inline bool isStrictGreater128(uint64_t h1, uint64_t l1, uint64_t h2, uint64_t l2) {
+    return (h1 > h2) || ((h1 == h2) && (l1 > l2));
+}
+
 static void inline imm_mul(uint64_t* x, uint64_t y, uint64_t* dst, uint64_t* carryH) {
 
 	unsigned char c = 0;
 	uint64_t h, carry;
 	dst[0] = _umul128(x[0], y, &h); carry = h;
-	c = _addcarry_u64(c, _umul128(x[1], y, &h), carry, dst + 1); carry = h;
-	c = _addcarry_u64(c, _umul128(x[2], y, &h), carry, dst + 2); carry = h;
-	c = _addcarry_u64(c, _umul128(x[3], y, &h), carry, dst + 3); carry = h;
-	c = _addcarry_u64(c, _umul128(x[4], y, &h), carry, dst + 4); carry = h;
+#ifdef _MSC_VER
+	c = _addcarry_u64(c, _umul128(x[1], y, &h), carry, (unsigned long long*)(dst + 1)); carry = h;
+	c = _addcarry_u64(c, _umul128(x[2], y, &h), carry, (unsigned long long*)(dst + 2)); carry = h;
+	c = _addcarry_u64(c, _umul128(x[3], y, &h), carry, (unsigned long long*)(dst + 3)); carry = h;
+	c = _addcarry_u64(c, _umul128(x[4], y, &h), carry, (unsigned long long*)(dst + 4)); carry = h;
+#else
+	c = __builtin_ia32_addcarryx_u64(c, _umul128(x[1], y, &h), carry, (long long unsigned int*)(dst + 1)); carry = h;
+	c = __builtin_ia32_addcarryx_u64(c, _umul128(x[2], y, &h), carry, (long long unsigned int*)(dst + 2)); carry = h;
+	c = __builtin_ia32_addcarryx_u64(c, _umul128(x[3], y, &h), carry, (long long unsigned int*)(dst + 3)); carry = h;
+	c = __builtin_ia32_addcarryx_u64(c, _umul128(x[4], y, &h), carry, (long long unsigned int*)(dst + 4)); carry = h;
+#endif
 #if NB64BLOCK > 5
 	c = _addcarry_u64(c, _umul128(x[5], y, &h), carry, dst + 5); carry = h;
 	c = _addcarry_u64(c, _umul128(x[6], y, &h), carry, dst + 6); carry = h;
@@ -332,69 +318,62 @@ static void inline imm_imul(uint64_t* x, uint64_t y, uint64_t* dst, uint64_t* ca
 	unsigned char c = 0;
 	uint64_t h, carry;
 	dst[0] = _umul128(x[0], y, &h); carry = h;
-	c = _addcarry_u64(c, _umul128(x[1], y, &h), carry, dst + 1); carry = h;
-	c = _addcarry_u64(c, _umul128(x[2], y, &h), carry, dst + 2); carry = h;
-	c = _addcarry_u64(c, _umul128(x[3], y, &h), carry, dst + 3); carry = h;
+	c = _addcarry_u64(c, _mul128(x[1], y, (int64_t*)&h), carry, dst + 1); carry = h;
+	c = _addcarry_u64(c, _mul128(x[2], y, (int64_t*)&h), carry, dst + 2); carry = h;
+	c = _addcarry_u64(c, _mul128(x[3], y, (int64_t*)&h), carry, dst + 3); carry = h;
+	c = _addcarry_u64(c, _mul128(x[4], y, (int64_t*)&h), carry, dst + 4); carry = h;
 #if NB64BLOCK > 5
-	c = _addcarry_u64(c, _umul128(x[4], y, &h), carry, dst + 4); carry = h;
-	c = _addcarry_u64(c, _umul128(x[5], y, &h), carry, dst + 5); carry = h;
-	c = _addcarry_u64(c, _umul128(x[6], y, &h), carry, dst + 6); carry = h;
-	c = _addcarry_u64(c, _umul128(x[7], y, &h), carry, dst + 7); carry = h;
+	c = _addcarry_u64(c, _mul128(x[5], y, (int64_t*)&h), carry, dst + 5); carry = h;
+	c = _addcarry_u64(c, _mul128(x[6], y, (int64_t*)&h), carry, dst + 6); carry = h;
+	c = _addcarry_u64(c, _mul128(x[7], y, (int64_t*)&h), carry, dst + 7); carry = h;
+	c = _addcarry_u64(c, _mul128(x[8], y, (int64_t*)&h), carry, dst + 8); carry = h;
 #endif
-	c = _addcarry_u64(c, _mul128(x[NB64BLOCK - 1], y, (int64_t*)&h), carry, dst + NB64BLOCK - 1); carry = h;
 	*carryH = carry;
-
-}
-
-static void inline imm_umul(uint64_t* x, uint64_t y, uint64_t* dst) {
-
-	// Assume that x[NB64BLOCK-1] is 0
-	unsigned char c = 0;
-	uint64_t h, carry;
-	dst[0] = _umul128(x[0], y, &h); carry = h;
-	c = _addcarry_u64(c, _umul128(x[1], y, &h), carry, dst + 1); carry = h;
-	c = _addcarry_u64(c, _umul128(x[2], y, &h), carry, dst + 2); carry = h;
-	c = _addcarry_u64(c, _umul128(x[3], y, &h), carry, dst + 3); carry = h;
-#if NB64BLOCK > 5
-	c = _addcarry_u64(c, _umul128(x[4], y, &h), carry, dst + 4); carry = h;
-	c = _addcarry_u64(c, _umul128(x[5], y, &h), carry, dst + 5); carry = h;
-	c = _addcarry_u64(c, _umul128(x[6], y, &h), carry, dst + 6); carry = h;
-	c = _addcarry_u64(c, _umul128(x[7], y, &h), carry, dst + 7); carry = h;
-#endif
-	_addcarry_u64(c, 0ULL, carry, dst + (NB64BLOCK - 1));
 
 }
 
 static void inline shiftR(unsigned char n, uint64_t* d) {
 
+#if NB64BLOCK > 5
 	d[0] = __shiftright128(d[0], d[1], n);
 	d[1] = __shiftright128(d[1], d[2], n);
 	d[2] = __shiftright128(d[2], d[3], n);
 	d[3] = __shiftright128(d[3], d[4], n);
-#if NB64BLOCK > 5
 	d[4] = __shiftright128(d[4], d[5], n);
 	d[5] = __shiftright128(d[5], d[6], n);
 	d[6] = __shiftright128(d[6], d[7], n);
 	d[7] = __shiftright128(d[7], d[8], n);
+	d[8] = (int64_t)d[8] >> n;
+#else
+	d[0] = __shiftright128(d[0], d[1], n);
+	d[1] = __shiftright128(d[1], d[2], n);
+	d[2] = __shiftright128(d[2], d[3], n);
+	d[3] = __shiftright128(d[3], d[4], n);
+	d[4] = (int64_t)d[4] >> n;
 #endif
-	d[NB64BLOCK - 1] = ((int64_t)d[NB64BLOCK - 1]) >> n;
 
 }
 
-static void inline shiftR(unsigned char n, uint64_t* d, uint64_t h) {
+// Overloaded version with carry
+static void inline shiftR(unsigned char n, uint64_t* d, uint64_t carry) {
 
+#if NB64BLOCK > 5
 	d[0] = __shiftright128(d[0], d[1], n);
 	d[1] = __shiftright128(d[1], d[2], n);
 	d[2] = __shiftright128(d[2], d[3], n);
 	d[3] = __shiftright128(d[3], d[4], n);
-#if NB64BLOCK > 5
 	d[4] = __shiftright128(d[4], d[5], n);
 	d[5] = __shiftright128(d[5], d[6], n);
 	d[6] = __shiftright128(d[6], d[7], n);
 	d[7] = __shiftright128(d[7], d[8], n);
+	d[8] = __shiftright128(d[8], carry, n);
+#else
+	d[0] = __shiftright128(d[0], d[1], n);
+	d[1] = __shiftright128(d[1], d[2], n);
+	d[2] = __shiftright128(d[2], d[3], n);
+	d[3] = __shiftright128(d[3], d[4], n);
+	d[4] = __shiftright128(d[4], carry, n);
 #endif
-
-	d[NB64BLOCK - 1] = __shiftright128(d[NB64BLOCK - 1], h, n);
 
 }
 
@@ -405,19 +384,28 @@ static void inline shiftL(unsigned char n, uint64_t* d) {
 	d[7] = __shiftleft128(d[6], d[7], n);
 	d[6] = __shiftleft128(d[5], d[6], n);
 	d[5] = __shiftleft128(d[4], d[5], n);
-#endif
 	d[4] = __shiftleft128(d[3], d[4], n);
 	d[3] = __shiftleft128(d[2], d[3], n);
 	d[2] = __shiftleft128(d[1], d[2], n);
 	d[1] = __shiftleft128(d[0], d[1], n);
 	d[0] = d[0] << n;
+#else
+	d[4] = __shiftleft128(d[3], d[4], n);
+	d[3] = __shiftleft128(d[2], d[3], n);
+	d[2] = __shiftleft128(d[1], d[2], n);
+	d[1] = __shiftleft128(d[0], d[1], n);
+	d[0] = d[0] << n;
+#endif
 
 }
 
-static inline int isStrictGreater128(uint64_t h1, uint64_t l1, uint64_t h2, uint64_t l2) {
-	if (h1 > h2) return 1;
-	if (h1 == h2) return l1 > l2;
-	return 0;
+// Overloaded version without carryH output
+static void inline imm_mul(uint64_t* x, uint64_t y, uint64_t* dst) {
+	uint64_t carryH;
+	imm_mul(x, y, dst, &carryH);
 }
 
-#endif // BIGINTH
+// Define imm_umul as an alias to imm_mul for compatibility
+#define imm_umul imm_mul
+
+#endif

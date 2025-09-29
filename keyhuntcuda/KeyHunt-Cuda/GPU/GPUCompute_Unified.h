@@ -1,222 +1,48 @@
 /*
- * KeyHunt-Cuda 统一GPU计算模块
- * 
- * 目标: 消除65%的代码重复，统一CUDA内核接口
- * 作者: AI Agent - Expert-CUDA-C++-Architect
- * 日期: 2025-08-30
- * 
- * 设计原则:
- * 1. 使用模板元编程统一不同搜索模式
- * 2. 编译时分支替代运行时分支，保持性能
- * 3. 保持原有算法逻辑不变，确保正确性
- */
+ * This file is part of the KeyHunt-Cuda distribution (https://github.com/your-repo/keyhunt-cuda).
+ * Copyright (c) 2025 Your Name.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #ifndef GPU_COMPUTE_UNIFIED_H
 #define GPU_COMPUTE_UNIFIED_H
 
+#include "GPUMemoryOptimized.h"
+
+#include <cuda_runtime.h>
+#include <device_atomic_functions.h>
+#include "../hash/sha256.h"
+#include "../hash/ripemd160.h"
+#include "../hash/keccak160.h"
+#include "../Constants.h"
+#include "SearchMode.h"
+#include "GPUCompute.h"
 #include "GPUMath.h"
 #include "GPUHash.h"
-#include "../Constants.h"
-#include "GPUMemoryOptimized.h"  // 内存访问优化
-#include "GPUProfiler.h"  // 设备侧性能分析
-#include "GPUCacheOptimizer.h"  // L1缓存优化
-// GPUCompute.h 应该在后面包含，因为它依赖于本文件中的定义
 
-// 搜索模式枚举已在GPUCompute.h中定义
+// Global device variables are declared in GPUMemoryOptimized.h
 
-// 压缩模式枚举
-enum class CompressionMode : uint32_t {
-    COMPRESSED = 0,
-    UNCOMPRESSED = 1
-};
+// EC functions are defined in GPUCompute.h - no forward declarations needed
 
-// 币种类型枚举
-enum class CoinType : uint32_t {
-    BITCOIN = 0,
-    ETHEREUM = 1
-};
-
-// 统一的检查函数模板特化声明
-
-// MA模式特化 - 多地址布隆过滤器检查
-// MA模式特化 - 多地址布隆过滤器检查
-// 已由通用模板处理
-
-// SA模式特化 - 单地址哈希检查
-// SA模式特化 - 单地址哈希检查
-// 已由通用模板处理
-
-// MX模式特化 - 多X坐标检查
-// MX模式特化 - 多X坐标检查
-// 已由通用模板处理
-
-// SX模式特化 - 单X坐标检查
-// SX模式特化 - 单X坐标检查
-// 已由通用模板处理
-
-// 以太坊MA模式特化
-// 以太坊MA模式特化
-// 已由通用模板处理
-
-// 以太坊SA模式特化
-// 以太坊SA模式特化
-// 已由通用模板处理
-
-// 统一的椭圆曲线计算核心函数
-// 这个函数合并了所有重复的椭圆曲线计算逻辑
+// Unified hash checking function template
 template<SearchMode Mode>
-__device__ void unified_compute_keys_core(
-    uint32_t mode, 
-    uint64_t* startx, 
-    uint64_t* starty,
-    const void* target_data,
-    uint32_t param1,  // bloom_bits 或其他参数
-    uint32_t param2,  // bloom_hashes 或其他参数
-    uint32_t maxFound, 
-    uint32_t* out)
-{
-    // 统一的变量声明 - 消除重复
-    uint64_t dx[GRP_SIZE / 2 + 1][4];
-    uint64_t px[4];
-    uint64_t py[4];
-    uint64_t pyn[4];
-    uint64_t sx[4];
-    uint64_t sy[4];
-    uint64_t dy[4];
-    uint64_t _s[4];
-    uint64_t _p2[4];
+__device__ __forceinline__ void unified_check_hash(
+    uint32_t mode, uint64_t* px, uint64_t* py, int32_t incr,
+    const void* target_data, uint32_t param1, uint32_t param2,
+    uint32_t maxFound, uint32_t* out);
 
-    // 统一的起始点加载逻辑 - 消除重复
-    __syncthreads();
-    Load256A(sx, startx);
-    Load256A(sy, starty);
-    Load256(px, sx);
-    Load256(py, sy);
-
-    // 多层次内存优化的delta x计算 - 减少非合并访问，提升L1缓存命中率
-    uint32_t i;
-
-    #ifdef KEYHUNT_SIMPLE_OPTIMIZED
-    // 简化版优化 - 仅使用 __ldg 指令访问只读数据
-    for (i = 0; i < HSIZE; i++)
-        ModSub256(dx[i], LOAD_GX(i), sx);
-    ModSub256(dx[i], LOAD_GX(i), sx);     // For the first point
-    ModSub256(dx[i + 1], _2Gnx, sx);      // For the next center point
-    
-    #else
-    // 原始访问模式
-    for (i = 0; i < HSIZE; i++)
-        ModSub256(dx[i], Gx + 4 * i, sx);
-    ModSub256(dx[i], Gx + 4 * i, sx);     // For the first point
-    ModSub256(dx[i + 1], _2Gnx, sx);      // For the next center point
-    #endif
-
-    // 统一的模逆计算 - 消除重复，支持性能分析
-    #ifdef KEYHUNT_PROFILE_INTERNAL
-    _ModInvGrouped_Profiled(dx);
-    #else
-    _ModInvGrouped(dx);
-    #endif
-
-    // 统一的起始点检查 - 使用模板特化
-    unified_check_hash<Mode>(mode, px, py, GRP_SIZE / 2, target_data, param1, param2, maxFound, out);
-
-    ModNeg256(pyn, py);
-
-    // 多层次优化的主循环 - 减少DRAM带宽压力，提升L1缓存命中率
-    for (i = 0; i < HSIZE; i++) {
-        // P = StartPoint + i*G
-        Load256(px, sx);
-        Load256(py, sy);
-
-        #ifdef KEYHUNT_SIMPLE_OPTIMIZED
-        // 简化版优化 - 使用__ldg指令
-        uint64_t temp_gx[4], temp_gy[4];
-        temp_gx[0] = LOAD_GX(i);
-        temp_gx[1] = LOAD_GX(i + 1);
-        temp_gx[2] = LOAD_GX(i + 2);
-        temp_gx[3] = LOAD_GX(i + 3);
-        temp_gy[0] = LOAD_GY(i);
-        temp_gy[1] = LOAD_GY(i + 1);
-        temp_gy[2] = LOAD_GY(i + 2);
-        temp_gy[3] = LOAD_GY(i + 3);
-        compute_ec_point_add_profiled(px, py, temp_gx, temp_gy, dx[i]);
-        #else
-        compute_ec_point_add_profiled(px, py, Gx + 4 * i, Gy + 4 * i, dx[i]);
-        #endif
-
-        unified_check_hash<Mode>(mode, px, py, GRP_SIZE / 2 + (i + 1), target_data, param1, param2, maxFound, out);
-
-        // P = StartPoint - i*G, if (x,y) = i*G then (x,-y) = -i*G
-        Load256(px, sx);
-
-        #ifdef KEYHUNT_SIMPLE_OPTIMIZED
-        compute_ec_point_add_negative_profiled(px, py, pyn, temp_gx, temp_gy, dx[i]);
-        #else
-        compute_ec_point_add_negative_profiled(px, py, pyn, Gx + 4 * i, Gy + 4 * i, dx[i]);
-        #endif
-    }
-
-    // 统一的边界点处理 - 消除重复
-    // First point (startP - (GRP_SIZE/2)*G) - 内存优化
-    Load256(px, sx);
-    Load256(py, sy);
-
-    #ifdef KEYHUNT_SIMPLE_OPTIMIZED
-    uint64_t temp_gx[4], temp_gy[4];
-    temp_gx[0] = LOAD_GX(i);
-    temp_gx[1] = LOAD_GX(i + 1);
-    temp_gx[2] = LOAD_GX(i + 2);
-    temp_gx[3] = LOAD_GX(i + 3);
-    temp_gy[0] = LOAD_GY(i);
-    temp_gy[1] = LOAD_GY(i + 1);
-    temp_gy[2] = LOAD_GY(i + 2);
-    temp_gy[3] = LOAD_GY(i + 3);
-    compute_ec_point_add_special(px, py, temp_gx, temp_gy, dx[i], true);
-    #else
-    compute_ec_point_add_special(px, py, Gx + 4 * i, Gy + 4 * i, dx[i], true);
-    #endif
-
-    unified_check_hash<Mode>(mode, px, py, 0, target_data, param1, param2, maxFound, out);
-
-    i++;
-
-    // Next start point (startP + GRP_SIZE*G)
-    Load256(px, sx);
-    Load256(py, sy);
-    compute_ec_point_add(px, py, _2Gnx, _2Gny, dx[i + 1]);
-
-    // 统一的起始点更新 - 消除重复
-    __syncthreads();
-    Store256A(startx, px);
-    Store256A(starty, py);
-
-    // 报告性能分析结果
-    #ifdef KEYHUNT_PROFILE_INTERNAL
-    report_timing_stats();
-    #endif
-}
-
-// 统一的CUDA内核函数模板
-template<SearchMode Mode, CompressionMode Comp, CoinType Coin>
-__global__ void unified_compute_keys_kernel(
-    uint32_t mode,
-    const void* target_data,
-    uint32_t param1,
-    uint32_t param2,
-    uint64_t* keys,
-    uint32_t maxFound,
-    uint32_t* found)
-{
-    int xPtr = (blockIdx.x * blockDim.x) * 8;
-    int yPtr = xPtr + 4 * blockDim.x;
-    
-    // 调用统一的核心计算函数
-    unified_compute_keys_core<Mode>(mode, keys + xPtr, keys + yPtr, 
-                                   target_data, param1, param2, maxFound, found);
-}
-
-// 便利的内核启动函数
+// Unified kernel launch function template
 template<SearchMode Mode>
 __host__ void launch_unified_kernel(
     uint32_t mode,
@@ -228,26 +54,7 @@ __host__ void launch_unified_kernel(
     uint32_t* found,
     uint32_t blocks,
     uint32_t threads_per_block,
-    CompressionMode comp_mode = CompressionMode::COMPRESSED,
-    CoinType coin_type = CoinType::BITCOIN)
-{
-    if (comp_mode == CompressionMode::COMPRESSED) {
-        if (coin_type == CoinType::BITCOIN) {
-            unified_compute_keys_kernel<Mode, CompressionMode::COMPRESSED, CoinType::BITCOIN>
-                <<<blocks, threads_per_block>>>(mode, target_data, param1, param2, keys, maxFound, found);
-        } else {
-            unified_compute_keys_kernel<Mode, CompressionMode::COMPRESSED, CoinType::ETHEREUM>
-                <<<blocks, threads_per_block>>>(mode, target_data, param1, param2, keys, maxFound, found);
-        }
-    } else {
-        if (coin_type == CoinType::BITCOIN) {
-            unified_compute_keys_kernel<Mode, CompressionMode::UNCOMPRESSED, CoinType::BITCOIN>
-                <<<blocks, threads_per_block>>>(mode, target_data, param1, param2, keys, maxFound, found);
-        } else {
-            unified_compute_keys_kernel<Mode, CompressionMode::UNCOMPRESSED, CoinType::ETHEREUM>
-                <<<blocks, threads_per_block>>>(mode, target_data, param1, param2, keys, maxFound, found);
-        }
-    }
-}
+    CompressionMode comp_mode,
+    CoinType coin_type);
 
 #endif // GPU_COMPUTE_UNIFIED_H

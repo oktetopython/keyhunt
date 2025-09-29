@@ -1,0 +1,23 @@
+# This would normally be the entire content, but for now just fixing the problematic section
+
+# Copy all lines except the broken ones (lines 695-700)
+head -694 GPU/GPUMath.h.broken > GPU/GPUMath.h.new
+
+# Add the fixed function body
+cat >> GPU/GPUMath.h.new << 'EOF'
+{
+    uint64_t t[4];
+    _ModMult(t, r, a);
+    Load256(r, t);
+}
+
+// Overload for const pointer parameters
+__device__ __forceinline__ void _ModMult(uint64_t *r, uint64_t *a, const uint64_t *b)
+{
+    _ModMult(r, a, (uint64_t*)b);
+}
+
+EOF
+
+# Add the rest of the file
+tail -n +701 GPU/GPUMath.h.broken >> GPU/GPUMath.h.new

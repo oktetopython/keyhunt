@@ -44,6 +44,19 @@ namespace KeyHuntConstants {
     
     // 内存相关常量
     constexpr size_t DEFAULT_GPU_MEMORY_ALIGNMENT = 32;
+    constexpr size_t CUDA_STACK_SIZE = 49152;  // Stack size for CUDA kernels
+    
+    // 计算相关常量
+    constexpr size_t GROUP_HALF_SIZE = ELLIPTIC_CURVE_GROUP_SIZE / 2;
+    constexpr size_t DX_ARRAY_SIZE = GROUP_HALF_SIZE + 1;
+    
+    // 文件和输出常量
+    constexpr const char* DEFAULT_OUTPUT_FILE = "Found.txt";
+    constexpr size_t MAX_LINE_LENGTH = 256;
+    
+    // 性能常量
+    constexpr int DEFAULT_MULTIPROCESSOR_MULTIPLIER = 8;
+    constexpr int CPU_SLEEP_INTERVAL_MS = 1;  // CPU sleep interval for async operations
 }
 
 // 为保持向后兼容性，定义宏别名
