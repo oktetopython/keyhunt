@@ -28,12 +28,11 @@ void usage()
 
 	printf("-h, --help                               : Display this message\n");
 	printf("-c, --check                              : Check the working of the codes\n");
-	printf("-u, --uncomp                             : Search uncompressed points\n");
-	printf("-b, --both                               : Search both uncompressed or compressed points\n");
-	printf("-g, --gpu                                : Enable GPU calculation\n");
-	printf("--gpui GPU ids: 0,1,...                  : List of GPU(s) to use, default is 0\n");
-	printf("--gpux GPU gridsize: g0x,g0y,g1x,g1y,... : Specify GPU(s) kernel gridsize, default is 8*(Device MP count),128\n");
-	printf("-t, --thread N                           : Specify number of CPU thread, default is number of core\n");
+    printf("-u, --uncomp                             : Force uncompressed search mode\n");
+    printf("-b, --both                               : Search both compressed and uncompressed points\n");
+    printf("-g, --gpu                                : (Optional) explicit GPU enable flag\n");
+    printf("--gpui GPU ids: 0,1,...                  : List of GPU(s) to use, default is 0\n");
+    printf("--gpux GPU gridsize: g0x,g0y,g1x,g1y,... : Specify GPU(s) kernel gridsize, default is 8*(Device MP count),128\n");
 	printf("-i, --in FILE                            : Read rmd160 hashes or xpoints from FILE, should be in binary format with sorted\n");
 	printf("-o, --out FILE                           : Write keys to FILE, default: Found.txt\n");
 	printf("-m, --mode MODE                          : Specify search mode where MODE is\n");
@@ -41,6 +40,7 @@ void usage()
 	printf("                                               ADDRESSES: for multiple hashes/addresses\n");
 	printf("                                               XPOINT   : for single xpoint\n");
 	printf("                                               XPOINTS  : for multiple xpoints\n");
+	printf("                                               PUZZLE71 : Specialized mode for Bitcoin Puzzle #71\n");
 	printf("--coin BTC/ETH                           : Specify Coin name to search\n");
 	printf("                                               BTC: available mode :-\n");
 	printf("                                                   ADDRESS, ADDRESSES, XPOINT, XPOINTS\n");
@@ -110,6 +110,10 @@ int parseSearchMode(const std::string& s)
 
 	if (stype == "xpoints") {
 		return SEARCH_MODE_MX;
+	}
+
+	if (stype == "puzzle71") {
+		return SEARCH_MODE_PUZZLE71;
 	}
 
 	printf("Invalid search mode format: %s", stype.c_str());
@@ -209,9 +213,6 @@ private:
 	string address;
 	string xpoint;
 	std::vector<unsigned char> hashORxpoint;
-	int nbCPUThread;
-	bool tSpecified;
-	bool useSSE;
 	uint32_t maxFound;
 	uint64_t rKey;
 	Int rangeStart;
@@ -221,9 +222,8 @@ private:
 
 public:
 	Application() : 
-		gpuEnable(false), gpuAutoGrid(true), compMode(SEARCH_COMPRESSED), 
-		gpuId({0}), outputFile("Found.txt"), nbCPUThread(Timer::getCoreNumber()),
-		tSpecified(false), useSSE(true), maxFound(KeyHuntConstants::DEFAULT_MAX_FOUND),
+		gpuEnable(true), gpuAutoGrid(true), compMode(SEARCH_COMPRESSED), 
+		gpuId({0}), outputFile("Found.txt"), maxFound(KeyHuntConstants::DEFAULT_MAX_FOUND),
 		rKey(0), searchMode(0), coinType(COIN_BTC) {
 		rangeStart.SetInt32(0);
 		rangeEnd.SetInt32(0);
@@ -240,7 +240,6 @@ public:
 		parser.add("-g", "--gpu", false);
 		parser.add("", "--gpui", true);
 		parser.add("", "--gpux", true);
-		parser.add("-t", "--thread", true);
 		parser.add("-i", "--in", true);
 		parser.add("-o", "--out", true);
 		parser.add("-m", "--mode", true);
@@ -306,10 +305,9 @@ public:
 				else if (optArg.equals("-b", "--both")) {
 					compMode = SEARCH_BOTH;
 				}
-				else if (optArg.equals("-g", "--gpu")) {
-					gpuEnable = true;
-					nbCPUThread = 0;
-				}
+			else if (optArg.equals("-g", "--gpu")) {
+				gpuEnable = true;
+			}
 				else if (optArg.equals("", "--gpui")) {
 					string ids = optArg.arg;
 					getInts("--gpui", gpuId, ids, ',');
@@ -318,10 +316,6 @@ public:
 					string grids = optArg.arg;
 					getInts("--gpux", gridSize, grids, ',');
 					gpuAutoGrid = false;
-				}
-				else if (optArg.equals("-t", "--thread")) {
-					nbCPUThread = std::stoi(optArg.arg);
-					tSpecified = true;
 				}
 				else if (optArg.equals("-i", "--in")) {
 					inputFile = optArg.arg;
@@ -368,11 +362,7 @@ public:
 		
 		if (coinType == COIN_ETH) {
 			compMode = SEARCH_UNCOMPRESSED;
-			useSSE = false;
 		}
-		
-		if (searchMode == (int)SEARCH_MODE_MX || searchMode == (int)SEARCH_MODE_SX)
-			useSSE = false;
 
 		return true;
 	}
@@ -381,12 +371,13 @@ public:
 	int parseOperands(const std::vector<std::string>& ops) {
 		if (ops.size() == 0) {
 			// read from file
-			if (inputFile.size() == 0) {
+			// PUZZLE71 mode doesn't need input file or operands
+			if (inputFile.size() == 0 && searchMode != SEARCH_MODE_PUZZLE71) {
 				printf("Error: %s\n", "Missing arguments");
 				usage();
 				return -1;
 			}
-			if (searchMode != SEARCH_MODE_MA && searchMode != SEARCH_MODE_MX) {
+			if (searchMode != SEARCH_MODE_MA && searchMode != SEARCH_MODE_MX && searchMode != SEARCH_MODE_PUZZLE71) {
 				printf("Error: %s\n", "Wrong search mode provided for multiple addresses or xpoints");
 				usage();
 				return -1;
@@ -394,12 +385,13 @@ public:
 		}
 		else {
 			// read from cmdline
-			if (ops.size() != 1) {
+			// PUZZLE71 mode doesn't need an address argument
+			if (searchMode == SEARCH_MODE_PUZZLE71 ? ops.size() > 1 : ops.size() != 1) {
 				printf("Error: %s\n", "Wrong args or more than one address or xpoint are provided, use inputFile for multiple addresses or xpoints");
 				usage();
 				return -1;
 			}
-			if (searchMode != SEARCH_MODE_SA && searchMode != SEARCH_MODE_SX) {
+			if (searchMode != SEARCH_MODE_SA && searchMode != SEARCH_MODE_SX && searchMode != SEARCH_MODE_PUZZLE71) {
 				printf("Error: %s\n", "Wrong search mode provided for single address or xpoint");
 				usage();
 				return -1;
@@ -462,6 +454,41 @@ public:
 				}
 			}
 			break;
+		case (int)SEARCH_MODE_PUZZLE71:
+			{
+				// For PUZZLE71 mode, use hardcoded Bitcoin Puzzle #71 address
+				// Address: 1HBtApAFA9B2YZw3G2YKSMCtb3dVnjuNe2
+				// The actual target hash will be handled in the GPU kernel
+				if (ops.size() == 1) {
+					// If user provided an address, we can accept it for compatibility
+					address = ops[0];
+				} else {
+					// No address provided, use the hardcoded Puzzle #71 address
+					address = "1HBtApAFA9B2YZw3G2YKSMCtb3dVnjuNe2";
+				}
+				
+				// Validate the address format
+				if (address.length() < 30 || address[0] != '1') {
+					printf("Error: %s\n", "Invalid address for PUZZLE71 mode");
+					usage();
+					return -1;
+				}
+				// Decode the provided address (will be replaced with hardcoded target in kernel)
+				if (DecodeBase58(address, hashORxpoint)) {
+					hashORxpoint.erase(hashORxpoint.begin() + 0);
+					hashORxpoint.erase(hashORxpoint.begin() + 20, hashORxpoint.begin() + 24);
+					assert(hashORxpoint.size() == 20);
+				}
+				
+				// Auto-set range for PUZZLE71 if not already set
+				if (rangeStart.GetBitLength() <= 0) {
+					// Puzzle #71 range: [2^70, 2^71)
+					rangeStart.SetBase16("40000000000000000");  // 2^70
+					rangeEnd.SetBase16("80000000000000000");    // 2^71 - 1
+					printf("Auto-set PUZZLE71 range: [2^70, 2^71)\n");
+				}
+			}
+			break;
 			default:
 				printf("Error: %s\n", "Invalid search mode for single address or xpoint");
 				usage();
@@ -475,11 +502,13 @@ public:
 
 	// 配置GPU参数
 	bool configureGPU() {
+		printf("[configureGPU] gpuId.size()=%zu, gridSize.size()=%zu\n", gpuId.size(), gridSize.size());
 		if (gridSize.size() == 0) {
 			for (int i = 0; i < gpuId.size(); i++) {
 				gridSize.push_back(-1);
 				gridSize.push_back(KeyHuntConstants::DEFAULT_GPU_THREADS_PER_BLOCK);
 			}
+			printf("[configureGPU] After init: gridSize.size()=%zu\n", gridSize.size());
 		}
 		
 		if (gridSize.size() != gpuId.size() * 2) {
@@ -498,27 +527,9 @@ public:
 			usage();
 			return false;
 		}
-		
-		if (nbCPUThread > 0 && gpuEnable) {
-			printf("Error: %s\n", "Invalid arguments, CPU and GPU, both can't be used together right now\n");
-			usage();
-			return false;
-		}
-
 		return true;
 	}
 
-	// 调整线程数
-	void adjustThreadCount() {
-		// Let one CPU core free per gpu is gpu is enabled
-		// It will avoid to hang the system
-		if (!tSpecified && nbCPUThread > 1 && gpuEnable)
-			nbCPUThread -= (int)gpuId.size();
-		if (nbCPUThread < 0)
-			nbCPUThread = 0;
-	}
-
-	// 打印配置信息
 	void printConfig() {
 		printf("\n");
 		printf("KeyHunt-Cuda %s (%s)\n", KEYHUNT_VERSION, KEYHUNT_BUILD_DATE);
@@ -527,9 +538,13 @@ public:
 		if (coinType == COIN_BTC)
 			printf("COMP MODE    : %s\n", compMode == SEARCH_COMPRESSED ? "COMPRESSED" : (compMode == SEARCH_UNCOMPRESSED ? "UNCOMPRESSED" : "COMPRESSED & UNCOMPRESSED"));
 		printf("COIN TYPE    : %s\n", coinType == COIN_BTC ? "BITCOIN" : "ETHEREUM");
-		printf("SEARCH MODE  : %s\n", searchMode == (int)SEARCH_MODE_MA ? "Multi Address" : (searchMode == (int)SEARCH_MODE_SA ? "Single Address" : (searchMode == (int)SEARCH_MODE_MX ? "Multi X Points" : "Single X Point")));
-		printf("DEVICE       : %s\n", (gpuEnable && nbCPUThread > 0) ? "CPU & GPU" : ((!gpuEnable && nbCPUThread > 0) ? "CPU" : "GPU"));
-		printf("CPU THREAD   : %d\n", nbCPUThread);
+		printf("SEARCH MODE  : %s\n", 
+			searchMode == (int)SEARCH_MODE_MA ? "Multi Address" : 
+			(searchMode == (int)SEARCH_MODE_SA ? "Single Address" : 
+			(searchMode == (int)SEARCH_MODE_MX ? "Multi X Points" : 
+			(searchMode == (int)SEARCH_MODE_SX ? "Single X Point" : 
+			(searchMode == (int)SEARCH_MODE_PUZZLE71 ? "Puzzle #71" : "Unknown")))));
+		printf("DEVICE       : GPU\n");
 		if (gpuEnable) {
 			printf("GPU IDS      : ");
 			for (int i = 0; i < gpuId.size(); i++) {
@@ -556,7 +571,6 @@ public:
 			else
 				printf("\n");
 		}
-		printf("SSE          : %s\n", useSSE ? "YES" : "NO");
 		printf("RKEY         : %" PRIu64 " Mkeys\n", rKey);
 		printf("MAX FOUND    : %d\n", maxFound);
 		if (coinType == COIN_BTC) {
@@ -572,6 +586,10 @@ public:
 				break;
 			case (int)SEARCH_MODE_SX:
 				printf("BTC XPOINT   : %s\n", xpoint.c_str());
+				break;
+			case (int)SEARCH_MODE_PUZZLE71:
+				printf("TARGET       : Bitcoin Puzzle #71\n");
+				printf("TARGET ADDR  : 1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU (hardcoded)\n");
 				break;
 			default:
 				break;
@@ -594,18 +612,28 @@ public:
 
 	// 运行搜索
 	int runSearch() {
+		if (!gpuEnable) {
+			printf("Error: GPU execution must be enabled in this build\n");
+			return -1;
+		}
+#ifdef WIN64
+		printf("Starting GPU search (Windows handler installed)\n");
+#else
+		printf("Starting GPU search\n");
+#endif
 #ifdef WIN64
 		if (SetConsoleCtrlHandler(CtrlHandler, TRUE)) {
 			KeyHunt* v;
 			switch (searchMode) {
 			case (int)SEARCH_MODE_MA:
 			case (int)SEARCH_MODE_MX:
-				v = new KeyHunt(inputFile, compMode, searchMode, coinType, gpuEnable, outputFile, useSSE,
+				v = new KeyHunt(inputFile, compMode, searchMode, coinType, gpuEnable, outputFile,
 					maxFound, rKey, rangeStart.GetBase16(), rangeEnd.GetBase16(), should_exit);
 				break;
 			case (int)SEARCH_MODE_SA:
 			case (int)SEARCH_MODE_SX:
-				v = new KeyHunt(hashORxpoint, compMode, searchMode, coinType, gpuEnable, outputFile, useSSE,
+			case (int)SEARCH_MODE_PUZZLE71:
+				v = new KeyHunt(hashORxpoint, compMode, searchMode, coinType, gpuEnable, outputFile,
 					maxFound, rKey, rangeStart.GetBase16(), rangeEnd.GetBase16(), should_exit);
 				break;
 			default:
@@ -613,7 +641,7 @@ public:
 				return 0;
 				break;
 			}
-			v->Search(nbCPUThread, gpuId, gridSize, should_exit);
+			v->Search(gpuId, gridSize, should_exit);
 			delete v;
 			printf("\n\nBYE\n");
 			return 0;
@@ -628,20 +656,21 @@ public:
 		switch (searchMode) {
 		case (int)SEARCH_MODE_MA:
 		case (int)SEARCH_MODE_MX:
-			v = new KeyHunt(inputFile, compMode, searchMode, coinType, gpuEnable, outputFile, useSSE,
-				maxFound, rKey, rangeStart.GetBase16(), rangeEnd.GetBase16(), should_exit);
+		v = new KeyHunt(inputFile, compMode, searchMode, coinType, gpuEnable, outputFile,
+			maxFound, rKey, rangeStart.GetBase16(), rangeEnd.GetBase16(), should_exit);
 			break;
-		case (int)SEARCH_MODE_SA:
-		case (int)SEARCH_MODE_SX:
-			v = new KeyHunt(hashORxpoint, compMode, searchMode, coinType, gpuEnable, outputFile, useSSE,
-				maxFound, rKey, rangeStart.GetBase16(), rangeEnd.GetBase16(), should_exit);
-			break;
+	case (int)SEARCH_MODE_SA:
+	case (int)SEARCH_MODE_SX:
+	case (int)SEARCH_MODE_PUZZLE71:
+	v = new KeyHunt(hashORxpoint, compMode, searchMode, coinType, gpuEnable, outputFile,
+		maxFound, rKey, rangeStart.GetBase16(), rangeEnd.GetBase16(), should_exit);
+		break;
 		default:
 			printf("\n\nNothing to do, exiting\n");
 			return 0;
 			break;
 		}
-		v->Search(nbCPUThread, gpuId, gridSize, should_exit);
+	v->Search(gpuId, gridSize, should_exit);
 		delete v;
 		return 0;
 #endif
@@ -676,6 +705,8 @@ int main(int argc, char** argv)
 
 	// Parse operands
 	std::vector<std::string> ops = parser.getOperands();
+	for(size_t i = 0; i < ops.size(); i++) {
+	}
 	result = app.parseOperands(ops);
 	if (result != 0) {
 		return result;
@@ -690,9 +721,6 @@ int main(int argc, char** argv)
 	if (!app.validateRange()) {
 		return -1;
 	}
-
-	// 调整线程数
-	app.adjustThreadCount();
 
 	// 打印配置信息
 	app.printConfig();

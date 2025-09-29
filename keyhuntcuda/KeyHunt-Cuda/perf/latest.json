@@ -1,0 +1,11 @@
+{
+  "metrics": {
+    "batch16_speedup": 1.12,
+    "batch32_speedup": 1.12,
+    "combined_speedup": 1.04,
+    "hardcoded_speedup": 1.06,
+    "multithread_speedup": 1.0
+  },
+  "num_keys": 200000,
+  "status": "ok"
+}

@@ -1,0 +1,10 @@
+{
+  "tolerance": 0.05,
+  "metrics": {
+    "hardcoded_speedup": 1.06,
+    "batch16_speedup": 1.12,
+    "batch32_speedup": 1.12,
+    "multithread_speedup": 1.00,
+    "combined_speedup": 1.04
+  }
+}

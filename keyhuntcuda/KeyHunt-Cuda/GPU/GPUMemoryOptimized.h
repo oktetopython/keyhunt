@@ -2,7 +2,16 @@
 #define GPUMEMORYOPTIMIZED_H
 
 #include "GPUMath.h"
+#include "ScalarTypes.cuh"
 #include "../Constants.h"
+#include "SearchMode.h"
+
+// 前向声明全局设备变量
+extern __device__ uint64_t* _2Gnx;
+extern __device__ uint64_t* _2Gny;
+extern __device__ uint64_t* Gx;
+extern __device__ uint64_t* Gy;
+extern __device__ int found_flag;
 
 // Memory-optimized version of key computation functions
 // Addresses the identified memory bottlenecks:
@@ -20,17 +29,20 @@ struct OptimizedDxArrays {
 };
 
 // Shared memory staging for frequently accessed data
-__shared__ uint64_t shared_Gx_cache[32][4];  // Cache for hot Gx entries
-__shared__ uint64_t shared_Gy_cache[32][4];  // Cache for hot Gy entries
-__shared__ uint64_t shared_dx_staging[128][4]; // Staging area for dx computations
+// These should be declared inside device functions, not globally
+// __shared__ uint64_t shared_Gx_cache[32][4];  // Cache for hot Gx entries
+// __shared__ uint64_t shared_Gy_cache[32][4];  // Cache for hot Gy entries
+// __shared__ uint64_t shared_dx_staging[128][4]; // Staging area for dx computations
 
 // Memory-optimized version of _ModInvGrouped
-__device__ __noinline__ void _ModInvGrouped_Optimized(OptimizedDxArrays& dx_arrays, int group_size)
+__device__ __forceinline__ void _ModInvGrouped_Optimized(OptimizedDxArrays& dx_arrays, int group_size)
 {
     // Use shared memory for intermediate computations to reduce global memory pressure
     __shared__ uint64_t shared_subp[KeyHuntConstants::ELLIPTIC_CURVE_GROUP_SIZE/2 + 1][4];
-    uint64_t newValue[4];
-    uint64_t inverse[5];
+    Scalar256 newValueScalar{};
+    Uint320 inverseScalar{};
+    uint64_t* newValue = newValueScalar.limbs;
+    uint64_t* inverse = inverseScalar.limbs;
     
     int tid = threadIdx.x;
     int stride = blockDim.x;
@@ -76,6 +88,10 @@ __device__ __noinline__ void _ModInvGrouped_Optimized(OptimizedDxArrays& dx_arra
 // Memory-optimized Gx/Gy access with shared memory caching
 __device__ __forceinline__ void load_Gx_Gy_cached(int index, uint64_t* gx_out, uint64_t* gy_out)
 {
+    // Declare shared memory locally
+    __shared__ uint64_t shared_Gx_cache[32][4];
+    __shared__ uint64_t shared_Gy_cache[32][4];
+    
     int cache_index = index % 32;  // Use modulo for simple cache mapping
     int tid = threadIdx.x;
     
@@ -92,8 +108,11 @@ __device__ __forceinline__ void load_Gx_Gy_cached(int index, uint64_t* gx_out, u
 }
 
 // Optimized delta x computation with better memory access patterns
-__device__ void compute_dx_optimized(OptimizedDxArrays& dx_arrays, uint64_t* sx, int group_size)
+__device__ __forceinline__ void compute_dx_optimized(OptimizedDxArrays& dx_arrays, uint64_t* sx, int group_size)
 {
+    // Declare shared memory locally
+    __shared__ uint64_t shared_dx_staging[128][4];
+    
     int tid = threadIdx.x;
     int stride = blockDim.x;
     

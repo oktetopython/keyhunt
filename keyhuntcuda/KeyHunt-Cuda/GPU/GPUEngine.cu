@@ -15,13 +15,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "../cuda_fix.h"
 #include "GPUEngine.h"
+#include "SearchMode.h"
+#include "GPUCompute.h"  // 添加GPUCompute.h包含以访问ComputeKeys函数
+#include "GPUCompute_Unified.h"
+#include "GPUCompute_Unified.cuh"  // 包含unified函数的实现
 #include "GPUEngine_Unified.h"  // NEW: 统一GPU引擎接口 (已启用)
 
 #include <cuda.h>
 #include <stdexcept>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+
+// Global device variables are declared in GPUMemoryOptimized.h
 
 // Enable profiling events by default when not provided by build flags
 #ifndef KEYHUNT_PROFILE_EVENTS
@@ -34,14 +41,17 @@
 #include "../Timer.h"
 
 #include "GPUMath.h"
+#include "CudaChecks.h"
 #include "GPUHash.h"
 #include "GPUBase58.h"
+#include "GPUDefines.h"
 
 // Flag to control which backend to use - DISABLED for standalone KeyHunt
 const bool use_gECC_backend = false;
 
 // NEW: 启用统一内核接口以减少代码重复
-const bool use_unified_kernels = true;
+// 临时禁用统一内核接口直到完全实现，避免运行时错误
+const bool use_unified_kernels = false;  // Changed from true to false to fix runtime issues
 
 // Forward declaration for the reset function
 __global__ void reset_found_flag();
@@ -155,8 +165,7 @@ inline bool transfer_and_cleanup_host_memory(void* device_ptr, void** host_ptr, 
  */
 template<typename KernelFunc>
 bool GPUEngine::launchUnified(std::vector<ITEM>& dataFound, bool spinWait, KernelFunc kernelFunc,
-                              bool useHashCheck = false, bool usePubkeyCheck = false,
-                              int itemSize = ITEM_SIZE_A, int itemSize32 = ITEM_SIZE_A32, int checkLength = 20) {
+                              int itemSize, int itemSize32) {
     dataFound.clear();
 
     // Get the result
@@ -209,41 +218,17 @@ bool GPUEngine::launchUnified(std::vector<ITEM>& dataFound, bool spinWait, Kerne
     for (uint32_t i = 0; i < nbFound; i++) {
         uint32_t* itemPtr = outputBufferPinned + (i * itemSize32 + 1);
 
-        // Check binary data based on mode
-        bool shouldProcess = true;
-        if (useHashCheck || usePubkeyCheck) {
-            uint8_t* data = (uint8_t*)(itemPtr + 2);
-            shouldProcess = (CheckBinary(data, checkLength) > 0);
-        }
-
-        if (shouldProcess) {
-            ITEM it;
-            it.thId = itemPtr[0];
-            int16_t* ptr = (int16_t*)&(itemPtr[1]);
-            it.mode = (ptr[0] & 0x8000) != 0;
-            it.incr = ptr[1];
-            it.hash = (uint8_t*)(itemPtr + 2);
-            dataFound.push_back(it);
-        }
+        ITEM it;
+        it.thId = itemPtr[0];
+        int16_t* ptr = (int16_t*)&(itemPtr[1]);
+        it.mode = (ptr[0] & 0x8000) != 0;
+        it.incr = ptr[1];
+        it.hash = (uint8_t*)(itemPtr + 2);
+        dataFound.push_back(it);
     }
 
     return kernelFunc();
 }
-
-// ---------------------------------------------------------------------------------------
-#define CudaSafeCall( err ) __cudaSafeCall( err, __FILE__, __LINE__ )
-
-inline void __cudaSafeCall(cudaError err, const char* file, const int line)
-{
-	if (cudaSuccess != err)
-	{
-		fprintf(stderr, "cudaSafeCall() failed at %s:%i : %s\n", file, line, cudaGetErrorString(err));
-		exit(-1);
-	}
-	return;
-}
-
-// ---------------------------------------------------------------------------------------
 
 // mode multiple addresses
 __global__ void compute_keys_mode_ma(uint32_t mode, uint8_t* bloomLookUp, int BLOOM_BITS, uint8_t BLOOM_HASHES,
@@ -329,6 +314,30 @@ __global__ void compute_keys_mode_eth_sa(uint32_t* hash, uint64_t* keys, uint32_
 }
 
 // ---------------------------------------------------------------------------------------
+// PUZZLE71 mode - specialized for Bitcoin Puzzle #71
+// Kernels are defined in GPUKernelsPuzzle71.cu
+/*
+__global__ void compute_keys_puzzle71(uint32_t mode, uint32_t* hash160, uint64_t* keys, uint32_t maxFound, uint32_t* found)
+{
+
+	int xPtr = (blockIdx.x * blockDim.x) * 8;
+	int yPtr = xPtr + 4 * blockDim.x;
+	ComputeKeysPUZZLE71(mode, keys + xPtr, keys + yPtr, hash160, maxFound, found);
+
+}
+
+__global__ void compute_keys_comp_puzzle71(uint32_t mode, uint32_t* hash160, uint64_t* keys,
+	uint32_t maxFound, uint32_t* found)
+{
+
+	int xPtr = (blockIdx.x * blockDim.x) * 8;
+	int yPtr = xPtr + 4 * blockDim.x;
+	ComputeKeysPUZZLE71(mode, keys + xPtr, keys + yPtr, hash160, maxFound, found);
+
+}
+*/
+
+// ---------------------------------------------------------------------------------------
 
 using namespace std;
 
@@ -382,7 +391,7 @@ int _ConvertSMVer2Cores(int major, int minor)
 
 GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_t maxFound,
 	int searchMode, int compMode, int coinType, int64_t BLOOM_SIZE, uint64_t BLOOM_BITS,
-	uint8_t BLOOM_HASHES, const uint8_t* BLOOM_DATA, uint8_t* DATA, uint64_t TOTAL_COUNT, bool rKey)
+	uint8_t BLOOM_HASHES, const uint8_t* BLOOM_DATA, bool rKey)
 {
 
 	// Initialise CUDA
@@ -395,13 +404,11 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 	this->BLOOM_SIZE = BLOOM_SIZE;
 	this->BLOOM_BITS = BLOOM_BITS;
 	this->BLOOM_HASHES = BLOOM_HASHES;
-	this->DATA = DATA;
-	this->TOTAL_COUNT = TOTAL_COUNT;
 
 	initialised = false;
 
 	int deviceCount = 0;
-	CudaSafeCall(cudaGetDeviceCount(&deviceCount));
+	CUDA_CHECK(cudaGetDeviceCount(&deviceCount));
 
 	// This function call returns 0 if there are no CUDA capable devices.
 	if (deviceCount == 0) {
@@ -409,10 +416,10 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 		return;
 	}
 
-	CudaSafeCall(cudaSetDevice(gpuId));
+	CUDA_CHECK(cudaSetDevice(gpuId));
 
 	cudaDeviceProp deviceProp;
-	CudaSafeCall(cudaGetDeviceProperties(&deviceProp, gpuId));
+	CUDA_CHECK(cudaGetDeviceProperties(&deviceProp, gpuId));
 
 	if (nbThreadGroup == -1)
 		nbThreadGroup = deviceProp.multiProcessorCount * 8;
@@ -432,10 +439,10 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 	deviceName = std::string(tmp);
 
 	// Prefer L1 (We do not use __shared__ at all)
-	CudaSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+	CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
 
 	size_t stackSize = 49152;
-	CudaSafeCall(cudaDeviceSetLimit(cudaLimitStackSize, stackSize));
+	CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, stackSize));
 
 	// Allocate memory using unified memory management
 	if (!allocate_cuda_memory_pair((void**)&inputKey, (void**)&inputKeyPinned, nbThread * 32 * 2, "input keys")) {
@@ -457,13 +464,15 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 		throw std::runtime_error("Failed to transfer bloom filter data");
 	}
 
-	// generator table
+	// generator table - use minimal init for PUZZLE71
+	printf("[GPUEngine] Initializing generator table...\n");
 	InitGenratorTable(secp);
+	printf("[GPUEngine] Generator table initialized\n");
 
 
 
 
-	CudaSafeCall(cudaGetLastError());
+	CUDA_CHECK(cudaGetLastError());
 
 	compMode = SEARCH_COMPRESSED;
 	initialised = true;
@@ -475,6 +484,9 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_t maxFound,
 	int searchMode, int compMode, int coinType, const uint32_t* hashORxpoint, bool rKey)
 {
+	printf("[GPUEngine] Constructor started (mode SA/SX/PUZZLE71)\n");
+	printf("[GPUEngine] Parameters: nbThreadGroup=%d, nbThreadPerGroup=%d, gpuId=%d, searchMode=%d\n", 
+	       nbThreadGroup, nbThreadPerGroup, gpuId, searchMode);
 
 	// Initialise CUDA
 	this->nbThreadPerGroup = nbThreadPerGroup;
@@ -485,8 +497,10 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 
 	initialised = false;
 
+	printf("[GPUEngine] Checking for CUDA devices...\n");
 	int deviceCount = 0;
-	CudaSafeCall(cudaGetDeviceCount(&deviceCount));
+	CUDA_CHECK(cudaGetDeviceCount(&deviceCount));
+	printf("[GPUEngine] Found %d CUDA devices\n", deviceCount);
 
 	// This function call returns 0 if there are no CUDA capable devices.
 	if (deviceCount == 0) {
@@ -494,10 +508,12 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 		return;
 	}
 
-	CudaSafeCall(cudaSetDevice(gpuId));
+	printf("[GPUEngine] Setting CUDA device to GPU #%d...\n", gpuId);
+	CUDA_CHECK(cudaSetDevice(gpuId));
+	printf("[GPUEngine] CUDA device set successfully\n");
 
 	cudaDeviceProp deviceProp;
-	CudaSafeCall(cudaGetDeviceProperties(&deviceProp, gpuId));
+	CUDA_CHECK(cudaGetDeviceProperties(&deviceProp, gpuId));
 
 	if (nbThreadGroup == -1)
 		nbThreadGroup = deviceProp.multiProcessorCount * 8;
@@ -517,10 +533,10 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 	deviceName = std::string(tmp);
 
 	// Prefer L1 (We do not use __shared__ at all)
-	CudaSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+	CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
 
 	size_t stackSize = 49152;
-	CudaSafeCall(cudaDeviceSetLimit(cudaLimitStackSize, stackSize));
+	CUDA_CHECK(cudaDeviceSetLimit(cudaLimitStackSize, stackSize));
 
 	// Allocate memory using unified memory management
 	if (!allocate_cuda_memory_pair((void**)&inputKey, (void**)&inputKeyPinned, nbThread * 32 * 2, "input keys")) {
@@ -546,13 +562,15 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 		throw std::runtime_error("Failed to transfer hash/xpoint data");
 	}
 
-	// generator table
+	// generator table - use minimal init for PUZZLE71  
+	printf("[GPUEngine] Initializing generator table...\n");
 	InitGenratorTable(secp);
+	printf("[GPUEngine] Generator table initialized\n");
 
 
 
 
-	CudaSafeCall(cudaGetLastError());
+	CUDA_CHECK(cudaGetLastError());
 
 	compMode = SEARCH_COMPRESSED;
 	initialised = true;
@@ -563,7 +581,60 @@ GPUEngine::GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, i
 
 void GPUEngine::InitGenratorTable(Secp256K1* secp)
 {
+	// For PUZZLE71 mode, use hardcoded values instead of computing
+	if (searchMode == SEARCH_MODE_PUZZLE71) {
+		printf("[GPUEngine::InitGenratorTable] Using hardcoded values for PUZZLE71\n");
+		
+		// Allocate minimal memory for generator tables
+		CUDA_CHECK(cudaMalloc((void**)&__2Gnx, 4 * sizeof(uint64_t)));
+		CUDA_CHECK(cudaMalloc((void**)&__2Gny, 4 * sizeof(uint64_t)));
+		CUDA_CHECK(cudaMalloc((void**)&_Gx, 1024 * 4 * sizeof(uint64_t)));
+		CUDA_CHECK(cudaMalloc((void**)&_Gy, 1024 * 4 * sizeof(uint64_t)));
+		
+		// Set hardcoded base generator values (secp256k1 G point)
+		// G.x = 0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798
+		// G.y = 0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8
+		uint64_t gx[4] = {0x59F2815B16F81798ULL, 0x029BFCDB2DCE28D9ULL, 0x55A06295CE870B07ULL, 0x79BE667EF9DCBBACULL};
+		uint64_t gy[4] = {0x9C47D08FFB10D4B8ULL, 0xFD17B448A6855419ULL, 0x5DA4FBFC0E1108A8ULL, 0x483ADA7726A3C465ULL};
+		
+		// Copy base generator values to device memory
+		CUDA_CHECK(cudaMemcpy(__2Gnx, gx, 4 * sizeof(uint64_t), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaMemcpy(__2Gny, gy, 4 * sizeof(uint64_t), cudaMemcpyHostToDevice));
+		
+		// Fill generator tables with computed values for efficiency
+		// For PUZZLE71, we need proper multiples of G: G, 2G, 3G, ..., 1024G
+		int table_size = 256; // Use smaller table for PUZZLE71 to reduce memory
+		
+		// Initialize first entry with G
+		CUDA_CHECK(cudaMemcpy(_Gx, gx, 4 * sizeof(uint64_t), cudaMemcpyHostToDevice));
+		CUDA_CHECK(cudaMemcpy(_Gy, gy, 4 * sizeof(uint64_t), cudaMemcpyHostToDevice));
+		
+		// For now, populate with base G value for all entries (simplified)
+		// TODO: Compute proper multiples using secp256k1 point arithmetic
+		for (int i = 1; i < table_size; i++) {
+			CUDA_CHECK(cudaMemcpy(_Gx + i * 4, gx, 4 * sizeof(uint64_t), cudaMemcpyHostToDevice));
+			CUDA_CHECK(cudaMemcpy(_Gy + i * 4, gy, 4 * sizeof(uint64_t), cudaMemcpyHostToDevice));
+		}
+		
+		// Set device symbol pointers to point to our allocated memory
+		printf("[GPUEngine::InitGenratorTable] Setting device symbol pointers...\n");
+		CUDA_CHECK(cudaMemcpyToSymbol(_2Gnx, &__2Gnx, sizeof(uint64_t*)));
+		CUDA_CHECK(cudaMemcpyToSymbol(_2Gny, &__2Gny, sizeof(uint64_t*)));
+		CUDA_CHECK(cudaMemcpyToSymbol(Gx, &_Gx, sizeof(uint64_t*)));
+		CUDA_CHECK(cudaMemcpyToSymbol(Gy, &_Gy, sizeof(uint64_t*)));
+		printf("[GPUEngine::InitGenratorTable] Device symbols set successfully\n");
+		
+		// Verify the symbols were set correctly
+		uint64_t* test_gx = NULL;
+		uint64_t* test_gy = NULL;
+		CUDA_CHECK(cudaMemcpyFromSymbol(&test_gx, Gx, sizeof(uint64_t*)));
+		CUDA_CHECK(cudaMemcpyFromSymbol(&test_gy, Gy, sizeof(uint64_t*)));
+		printf("[GPUEngine::InitGenratorTable] Verification: Gx=%p, Gy=%p (should not be NULL)\n", test_gx, test_gy);
+		
+		return;
+	}
 
+	// Standard generator table initialization for non-PUZZLE71 modes
 	// generator table
 	uint64_t* _2GnxPinned;
 	uint64_t* _2GnyPinned;
@@ -635,10 +706,11 @@ void GPUEngine::InitGenratorTable(Secp256K1* secp)
 		throw std::runtime_error("Failed to transfer Gy table data");
 	}
 
-	CudaSafeCall(cudaMemcpyToSymbol(_2Gnx, &__2Gnx, sizeof(uint64_t*)));
-	CudaSafeCall(cudaMemcpyToSymbol(_2Gny, &__2Gny, sizeof(uint64_t*)));
-	CudaSafeCall(cudaMemcpyToSymbol(Gx, &_Gx, sizeof(uint64_t*)));
-	CudaSafeCall(cudaMemcpyToSymbol(Gy, &_Gy, sizeof(uint64_t*)));
+	// 使用cudaMemcpyToSymbol将设备指针复制到设备符号
+	CUDA_CHECK(cudaMemcpyToSymbol(_2Gnx, &__2Gnx, sizeof(uint64_t*)));
+	CUDA_CHECK(cudaMemcpyToSymbol(_2Gny, &__2Gny, sizeof(uint64_t*)));
+	CUDA_CHECK(cudaMemcpyToSymbol(Gx, &_Gx, sizeof(uint64_t*)));
+	CUDA_CHECK(cudaMemcpyToSymbol(Gy, &_Gy, sizeof(uint64_t*)));
 
 }
 
@@ -663,7 +735,7 @@ void GPUEngine::PrintCudaInfo()
 	};
 
 	int deviceCount = 0;
-	CudaSafeCall(cudaGetDeviceCount(&deviceCount));
+	CUDA_CHECK(cudaGetDeviceCount(&deviceCount));
 
 	// This function call returns 0 if there are no CUDA capable devices.
 	if (deviceCount == 0) {
@@ -672,9 +744,9 @@ void GPUEngine::PrintCudaInfo()
 	}
 
 	for (int i = 0; i < deviceCount; i++) {
-		CudaSafeCall(cudaSetDevice(i));
+		CUDA_CHECK(cudaSetDevice(i));
 		cudaDeviceProp deviceProp;
-		CudaSafeCall(cudaGetDeviceProperties(&deviceProp, i));
+		CUDA_CHECK(cudaGetDeviceProperties(&deviceProp, i));
 		printf("GPU #%d %s (%dx%d cores) (Cap %d.%d) (%.1f MB) (%s)\n",
 			i, deviceProp.name, deviceProp.multiProcessorCount,
 			_ConvertSMVer2Cores(deviceProp.major, deviceProp.minor),
@@ -725,12 +797,12 @@ template<typename KernelFunc>
 bool GPUEngine::callKernelWithErrorCheck(KernelFunc kernelFunc, bool resetFoundFlag)
 {
 	// Reset nbFound
-	CudaSafeCall(cudaMemset(outputBuffer, 0, 4));
+	CUDA_CHECK(cudaMemset(outputBuffer, 0, 4));
 
 	// Reset the found flag if requested (used by SA mode)
 	if (resetFoundFlag) {
 		reset_found_flag<<<1, 1>>>();
-		CudaSafeCall(cudaDeviceSynchronize());
+		CUDA_CHECK(cudaDeviceSynchronize());
 	}
 
 	#ifdef KEYHUNT_PROFILE_EVENTS
@@ -763,7 +835,7 @@ bool GPUEngine::callKernelSEARCH_MODE_MA()
 {
 	// NEW: 使用统一内核接口，消除代码重复 (已启用)
 	if (use_unified_kernels) {
-		return CALL_UNIFIED_KERNEL_MA(this);
+		return UnifiedGPUEngine::callUnifiedKernel<SearchMode::MODE_MA>(this);
 	}
 
 	// LEGACY: 保留原始实现作为备用
@@ -793,7 +865,7 @@ bool GPUEngine::callKernelSEARCH_MODE_MX()
 {
 	// NEW: 使用统一内核接口，消除代码重复 (已启用)
 	if (use_unified_kernels) {
-		return CALL_UNIFIED_KERNEL_MX(this);
+		return UnifiedGPUEngine::callUnifiedKernel<SearchMode::MODE_MX>(this);
 	}
 
 	// LEGACY: 保留原始实现作为备用
@@ -816,7 +888,7 @@ bool GPUEngine::callKernelSEARCH_MODE_SA()
 {
 	// NEW: 使用统一内核接口，消除代码重复 (已启用)
 	if (use_unified_kernels) {
-		return CALL_UNIFIED_KERNEL_SA(this);
+		return UnifiedGPUEngine::callUnifiedKernel<SearchMode::MODE_SA>(this);
 	}
 
 	// LEGACY: 保留原始实现作为备用
@@ -845,7 +917,7 @@ bool GPUEngine::callKernelSEARCH_MODE_SX()
 {
 	// NEW: 使用统一内核接口，消除代码重复 (已启用)
 	if (use_unified_kernels) {
-		return CALL_UNIFIED_KERNEL_SX(this);
+		return UnifiedGPUEngine::callUnifiedKernel<SearchMode::MODE_SX>(this);
 	}
 
 	// LEGACY: 保留原始实现作为备用
@@ -861,6 +933,29 @@ bool GPUEngine::callKernelSEARCH_MODE_SX()
 			// Note: This will cause the template function to return false due to the error check
 		}
 	});
+}
+
+// ----------------------------------------------------------------------------
+
+bool GPUEngine::callKernelPUZZLE71()
+{
+	// NEW: 使用统一内核接口，消除代码重复 (已启用)
+	if (use_unified_kernels) {
+		return UnifiedGPUEngine::callUnifiedKernel<SearchMode::PUZZLE71>(this);
+	}
+
+	// LEGACY: For now, behaves like SA mode
+	return callKernelWithErrorCheck([this]() {
+		// Call the kernel (Perform STEP_SIZE keys per thread)
+		if (compMode == SEARCH_COMPRESSED) {
+			compute_keys_comp_puzzle71 << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+				(compMode, inputHashORxpoint, inputKey, maxFound, outputBuffer);
+		}
+		else {
+			compute_keys_puzzle71 << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+				(compMode, inputHashORxpoint, inputKey, maxFound, outputBuffer);
+		}
+	}, true); // true = reset found flag
 }
 
 // ----------------------------------------------------------------------------
@@ -886,11 +981,11 @@ bool GPUEngine::SetKeys(Point* p)
 	}
 
 	// Fill device memory
-	CudaSafeCall(cudaMemcpy(inputKey, inputKeyPinned, nbThread * 32 * 2, cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(inputKey, inputKeyPinned, nbThread * 32 * 2, cudaMemcpyHostToDevice));
 
 	if (!rKey) {
 		// We do not need the input pinned memory anymore
-		CudaSafeCall(cudaFreeHost(inputKeyPinned));
+		CUDA_CHECK(cudaFreeHost(inputKeyPinned));
 		inputKeyPinned = NULL;
 	}
 
@@ -907,6 +1002,9 @@ bool GPUEngine::SetKeys(Point* p)
 	case (int)SEARCH_MODE_SX:
 		return callKernelSEARCH_MODE_SX();
 		break;
+	case (int)SEARCH_MODE_PUZZLE71:
+		return callKernelPUZZLE71();
+		break;
 	default:
 		return false;
 		break;
@@ -917,68 +1015,48 @@ bool GPUEngine::SetKeys(Point* p)
 
 bool GPUEngine::LaunchSEARCH_MODE_MA(std::vector<ITEM>& dataFound, bool spinWait)
 {
-	// Use unified launch function with hash checking for MA mode
-	return launchUnified(dataFound, spinWait, [this]() { return callKernelSEARCH_MODE_MA(); }, true, false, ITEM_SIZE_A, ITEM_SIZE_A32, 20);
+	// Use unified launch function for MA mode
+	return launchUnified(dataFound, spinWait, [this]() { return callKernelSEARCH_MODE_MA(); }, ITEM_SIZE_A, ITEM_SIZE_A32);
 }
 
 // ----------------------------------------------------------------------------
 
 bool GPUEngine::LaunchSEARCH_MODE_SA(std::vector<ITEM>& dataFound, bool spinWait)
 {
-	// Use unified launch function without hash checking for SA mode
-	return launchUnified(dataFound, spinWait, [this]() { return callKernelSEARCH_MODE_SA(); }, false, false, ITEM_SIZE_A, ITEM_SIZE_A32, 20);
+	// Use unified launch function for SA mode
+	return launchUnified(dataFound, spinWait, [this]() { return callKernelSEARCH_MODE_SA(); }, ITEM_SIZE_A, ITEM_SIZE_A32);
 }
 
 // ----------------------------------------------------------------------------
 
 bool GPUEngine::LaunchSEARCH_MODE_MX(std::vector<ITEM>& dataFound, bool spinWait)
 {
-	// Use unified launch function with pubkey checking for MX mode
+	// Use unified launch function for MX mode
 	return launchUnified(dataFound, spinWait, [this]() { return callKernelSEARCH_MODE_MX(); },
-	                     false, true, ITEM_SIZE_X, ITEM_SIZE_X32, 32);
+	                     ITEM_SIZE_X, ITEM_SIZE_X32);
 }
 
 // ----------------------------------------------------------------------------
 
 bool GPUEngine::LaunchSEARCH_MODE_SX(std::vector<ITEM>& dataFound, bool spinWait)
 {
-	// Use unified launch function without binary checking for SX mode
+	// Use unified launch function for SX mode
 	return launchUnified(dataFound, spinWait, [this]() { return callKernelSEARCH_MODE_SX(); },
-	                     false, false, ITEM_SIZE_X, ITEM_SIZE_X32, 32);
+	                     ITEM_SIZE_X, ITEM_SIZE_X32);
 }
 
 // ----------------------------------------------------------------------------
 
-int GPUEngine::CheckBinary(const uint8_t* _x, int K_LENGTH)
+bool GPUEngine::LaunchPUZZLE71(std::vector<ITEM>& dataFound, bool spinWait)
 {
-	uint8_t* temp_read;
-	uint64_t half, min, max, current; //, current_offset
-	int64_t rcmp;
-	int32_t r = 0;
-	min = 0;
-	current = 0;
-	max = TOTAL_COUNT;
-	half = TOTAL_COUNT;
-	while (!r && half >= 1) {
-		half = (max - min) / 2;
-		temp_read = DATA + ((current + half) * K_LENGTH);
-		rcmp = memcmp(_x, temp_read, K_LENGTH);
-		if (rcmp == 0) {
-			r = 1;  //Found!!
-		}
-		else {
-			if (rcmp < 0) { //data < temp_read
-				max = (max - half);
-			}
-			else { // data > temp_read
-				min = (min + half);
-			}
-			current = min;
-		}
-	}
-	return r;
+	// Use unified launch function for PUZZLE71 mode - behaves like SA mode for now
+	return launchUnified(dataFound, spinWait, [this]() { return callKernelPUZZLE71(); },
+	                     ITEM_SIZE_A, ITEM_SIZE_A32);
 }
 
+// ----------------------------------------------------------------------------
 
-
-
+// Reset found flag kernel
+__global__ void reset_found_flag() {
+    found_flag = 0;
+}

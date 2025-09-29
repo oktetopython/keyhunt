@@ -1,0 +1,5 @@
+# Paths relative to the repository root that should be snapshotted.
+# Extend this list as additional reference directories are introduced.
+src/KeyhuntCore/ecc
+scan
+compare

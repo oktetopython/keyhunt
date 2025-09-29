@@ -20,6 +20,7 @@
 
 #include <vector>
 #include "../SECP256k1.h"
+#include "SearchMode.h"
 
 #define SEARCH_COMPRESSED 0
 #define SEARCH_UNCOMPRESSED 1
@@ -30,6 +31,7 @@
 #define SEARCH_MODE_SA 2	// single address
 #define SEARCH_MODE_MX 3	// multiple xpoints
 #define SEARCH_MODE_SX 4	// single xpoint
+#define SEARCH_MODE_PUZZLE71 7	// Bitcoin Puzzle #71 specialized mode
 
 #define COIN_BTC 1
 #define COIN_ETH 2
@@ -56,9 +58,9 @@ class GPUEngine
 
 public:
 
-	GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_t maxFound, 
-		int searchMode, int compMode, int coinType, int64_t BLOOM_SIZE, uint64_t BLOOM_BITS, 
-		uint8_t BLOOM_HASHES, const uint8_t* BLOOM_DATA, uint8_t* DATA, uint64_t TOTAL_COUNT, bool rKey);
+    GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_t maxFound,
+        int searchMode, int compMode, int coinType, int64_t BLOOM_SIZE, uint64_t BLOOM_BITS,
+        uint8_t BLOOM_HASHES, const uint8_t* BLOOM_DATA, bool rKey);
 
 	GPUEngine(Secp256K1* secp, int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_t maxFound, 
 		int searchMode, int compMode, int coinType, const uint32_t* hashORxpoint, bool rKey);
@@ -71,6 +73,7 @@ public:
 	bool LaunchSEARCH_MODE_SA(std::vector<ITEM>& dataFound, bool spinWait = false);
 	bool LaunchSEARCH_MODE_MX(std::vector<ITEM>& dataFound, bool spinWait = false);
 	bool LaunchSEARCH_MODE_SX(std::vector<ITEM>& dataFound, bool spinWait = false);
+	bool LaunchPUZZLE71(std::vector<ITEM>& dataFound, bool spinWait = false);
 
 	int GetNbThread();
 	int GetGroupSize();
@@ -106,14 +109,12 @@ protected:
 	bool callKernelSEARCH_MODE_SA();
 	bool callKernelSEARCH_MODE_MX();
 	bool callKernelSEARCH_MODE_SX();
+	bool callKernelPUZZLE71();
 
 	// Template function to encapsulate common launch pattern
-	template<typename KernelFunc>
-	bool launchUnified(std::vector<ITEM>& dataFound, bool spinWait, KernelFunc kernelFunc,
-	                   bool useHashCheck, bool usePubkeyCheck,
-	                   int itemSize, int itemSize32, int checkLength);
-
-	int CheckBinary(const uint8_t* x, int K_LENGTH);
+    template<typename KernelFunc>
+    bool launchUnified(std::vector<ITEM>& dataFound, bool spinWait, KernelFunc kernelFunc,
+                       int itemSize, int itemSize32);
 
 public:
 	int nbThread;
@@ -151,9 +152,6 @@ public:
 	int64_t BLOOM_SIZE;
 	uint64_t BLOOM_BITS;
 	uint8_t BLOOM_HASHES;
-
-	uint8_t* DATA;
-	uint64_t TOTAL_COUNT;
 
 };
 

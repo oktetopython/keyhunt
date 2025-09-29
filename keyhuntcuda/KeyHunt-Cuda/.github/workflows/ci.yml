@@ -1,0 +1,121 @@
+name: KeyHunt CUDA CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PERF_OUTPUT: perf/latest.json
+
+jobs:
+  lint-and-tests:
+    name: Lint, provenance, unit tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3-dev libgmp-dev
+
+      - name: Install Python tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-licenses PyYAML
+
+      - name: Incremental diff guardrails
+        run: python scripts/check_incremental.py
+
+      - name: License compliance
+        run: python scripts/check_licenses.py
+
+      - name: Provenance enforcement
+        run: python scripts/check_provenance.py
+
+      - name: Python unit tests
+        run: python -m unittest discover tests/tools
+
+      - name: Collect baseline-skipped performance sample
+        run: python scripts/perf_collect.py
+
+      - name: Performance comparison (skip-aware)
+        run: python scripts/perf_compare.py
+
+      - name: Upload perf artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-cpu-${{ matrix.python-version }}
+          path: perf/latest.json
+
+      - name: Emit incident report on failure
+        if: failure()
+        run: python scripts/ci_incident_report.py "lint-and-tests failure"
+
+  gpu-validation:
+    name: GPU smoke & performance regression
+    needs: lint-and-tests
+    runs-on: [self-hosted, gpu, linux]
+    env:
+      ENABLE_PERF_SMOKE: "1"
+      PERF_NUM_KEYS: "250000"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify NVIDIA runtime
+        run: nvidia-smi
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3-dev libgmp-dev
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-licenses PyYAML
+
+      - name: Build KeyHunt GPU binary
+        run: |
+          make clean || true
+          make KeyHunt
+
+      - name: Collect GPU performance metrics
+        run: python scripts/perf_collect.py
+
+      - name: Compare against baseline
+        run: python scripts/perf_compare.py
+
+      - name: Upload GPU perf artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-gpu
+          path: perf/latest.json
+
+      - name: Emit incident report on failure
+        if: failure()
+        run: python scripts/ci_incident_report.py "gpu-validation failure"

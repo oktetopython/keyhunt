@@ -71,7 +71,7 @@ __device__ void report_timing_stats()
 }
 
 // Instrumented version of _ModInvGrouped with cycle counting
-__device__ __noinline__ void _ModInvGrouped_Profiled(uint64_t r[GRP_SIZE / 2 + 1][4])
+__device__ __forceinline__ void _ModInvGrouped_Profiled(uint64_t r[GRP_SIZE / 2 + 1][4])
 {
     uint64_t start_cycles;
     profile_modinv_start(&start_cycles);
